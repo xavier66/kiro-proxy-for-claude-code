@@ -24,6 +24,14 @@ async def handle_messages(request: Request):
     log_id = uuid.uuid4().hex[:8]
     
     body = await request.json()
+    model = map_model_name(body.get("model", "claude-sonnet-4"))
+    messages = body.get("messages", [])
+    system = body.get("system", "")
+    stream = body.get("stream", False)
+    tools = body.get("tools", [])
+    
+    if not messages:
+        raise HTTPException(400, "messages required")
     
     session_id = generate_session_id(messages)
     account = state.get_available_account(session_id)
