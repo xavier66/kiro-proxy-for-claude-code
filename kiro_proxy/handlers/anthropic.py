@@ -80,11 +80,19 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
                     
                     if response.status_code != 200:
                         error_text = await response.aread()
+                        error_str = error_text.decode()
                         print(f"=== Kiro API Error ===")
                         print(f"Status: {response.status_code}")
-                        print(f"Response: {error_text.decode()[:500]}")
+                        print(f"Response: {error_str[:500]}")
                         print(f"======================")
-                        yield f'data: {{"type":"error","error":{{"type":"api_error","message":"API error: {response.status_code}"}}}}\n\n'
+                        
+                        # 友好的错误消息
+                        if "CONTENT_LENGTH_EXCEEDS_THRESHOLD" in error_str or "too long" in error_str.lower():
+                            error_msg = "对话太长，请使用 /clear 或开始新对话"
+                        else:
+                            error_msg = f"API error: {response.status_code}"
+                        
+                        yield f'data: {{"type":"error","error":{{"type":"api_error","message":"{error_msg}"}}}}\n\n'
                         return
                     
                     msg_id = f"msg_{log_id}"
@@ -166,6 +174,9 @@ async def _handle_non_stream(kiro_request, headers, account, model, log_id, star
             
             if response.status_code != 200:
                 error_msg = response.text
+                # 友好的错误消息
+                if "CONTENT_LENGTH_EXCEEDS_THRESHOLD" in error_msg or "too long" in error_msg.lower():
+                    raise HTTPException(400, "对话太长，请使用 /clear 或开始新对话")
                 raise HTTPException(response.status_code, response.text)
             
             result = parse_event_stream_full(response.content)
