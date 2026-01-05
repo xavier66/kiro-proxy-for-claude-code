@@ -24,14 +24,6 @@ async def handle_messages(request: Request):
     log_id = uuid.uuid4().hex[:8]
     
     body = await request.json()
-    model = map_model_name(body.get("model", "claude-sonnet-4"))
-    messages = body.get("messages", [])
-    system = body.get("system", "")
-    stream = body.get("stream", False)
-    tools = body.get("tools", [])
-    
-    if not messages:
-        raise HTTPException(400, "messages required")
     
     session_id = generate_session_id(messages)
     account = state.get_available_account(session_id)
@@ -44,7 +36,7 @@ async def handle_messages(request: Request):
         raise HTTPException(500, f"Failed to get token for account {account.name}")
     
     # 转换消息格式
-    user_content, history = convert_anthropic_messages_to_kiro(messages, system)
+    user_content, history, tool_results = convert_anthropic_messages_to_kiro(messages, system)
     
     # 提取最后一条消息中的图片
     images = []
@@ -55,7 +47,7 @@ async def handle_messages(request: Request):
     
     # 构建 Kiro 请求
     kiro_tools = convert_anthropic_tools_to_kiro(tools) if tools else None
-    kiro_request = build_kiro_request(user_content, model, history, kiro_tools, images)
+    kiro_request = build_kiro_request(user_content, model, history, kiro_tools, images, tool_results)
     
     headers = build_headers(token)
     error_msg = None
@@ -79,6 +71,11 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
                         return
                     
                     if response.status_code != 200:
+                        error_text = await response.aread()
+                        print(f"=== Kiro API Error ===")
+                        print(f"Status: {response.status_code}")
+                        print(f"Response: {error_text.decode()[:500]}")
+                        print(f"======================")
                         yield f'data: {{"type":"error","error":{{"type":"api_error","message":"API error: {response.status_code}"}}}}\n\n'
                         return
                     

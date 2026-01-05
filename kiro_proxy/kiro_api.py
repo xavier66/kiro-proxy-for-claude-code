@@ -24,7 +24,8 @@ def build_kiro_request(
     model: str,
     history: List[dict] = None,
     tools: List[dict] = None,
-    images: List[dict] = None
+    images: List[dict] = None,
+    tool_results: List[dict] = None
 ) -> dict:
     """构建 Kiro API 请求体"""
     conversation_id = str(uuid.uuid4())
@@ -43,6 +44,10 @@ def build_kiro_request(
     # 添加工具定义
     if tools:
         user_input_message["userInputMessageContext"]["tools"] = tools
+    
+    # 添加工具结果
+    if tool_results:
+        user_input_message["userInputMessageContext"]["toolResults"] = tool_results
     
     current_message = {
         "userInputMessage": user_input_message

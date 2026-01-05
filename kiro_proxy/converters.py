@@ -22,7 +22,7 @@ def extract_images_from_content(content) -> Tuple[str, List[dict]]:
         return content, []
     
     if not isinstance(content, list):
-        return str(content), []
+        return str(content) if content else "", []
     
     text_parts = []
     images = []
@@ -51,10 +51,11 @@ def extract_images_from_content(content) -> Tuple[str, List[dict]]:
                 elif "webp" in media_type:
                     fmt = "webp"
                 
-                images.append({
-                    "format": fmt,
-                    "source": {"bytes": data}
-                })
+                if data:
+                    images.append({
+                        "format": fmt,
+                        "source": {"bytes": data}
+                    })
             
             elif block_type == "image_url":
                 # OpenAI 格式
@@ -94,76 +95,129 @@ def convert_anthropic_tools_to_kiro(tools: List[dict]) -> List[dict]:
     return kiro_tools
 
 
-def convert_anthropic_messages_to_kiro(messages: List[dict], system: str = "") -> Tuple[str, List[dict]]:
+def convert_anthropic_messages_to_kiro(messages: List[dict], system = "") -> Tuple[str, List[dict], List[dict]]:
     """将 Anthropic 消息格式转换为 Kiro 格式
     
     Returns:
-        (user_content, history)
+        (user_content, history, tool_results)
+        - user_content: 当前用户消息内容
+        - history: 历史消息列表
+        - tool_results: 当前消息的工具结果（放入 userInputMessageContext.toolResults）
     """
     history = []
     user_content = ""
+    current_tool_results = []  # 当前消息的工具结果
     
-    for msg in messages:
+    # 处理 system 可能是列表的情况
+    system_text = ""
+    if isinstance(system, list):
+        for block in system:
+            if isinstance(block, dict) and block.get("type") == "text":
+                system_text += block.get("text", "") + "\n"
+            elif isinstance(block, str):
+                system_text += block + "\n"
+        system_text = system_text.strip()
+    elif isinstance(system, str):
+        system_text = system
+    
+    for i, msg in enumerate(messages):
         role = msg.get("role", "")
         content = msg.get("content", "")
+        is_last = (i == len(messages) - 1)
         
         # 处理 content 可能是列表的情况
+        tool_results = []
+        text_parts = []
+        
         if isinstance(content, list):
-            text_parts = []
-            tool_results = []
             for block in content:
-                if block.get("type") == "text":
-                    text_parts.append(block.get("text", ""))
-                elif block.get("type") == "tool_result":
-                    tool_results.append({
-                        "toolUseId": block.get("tool_use_id", ""),
-                        "content": block.get("content", "")
-                    })
-            content = "\n".join(text_parts)
+                if isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                    elif block.get("type") == "tool_result":
+                        # 工具结果 - Kiro 格式
+                        tr_content = block.get("content", "")
+                        if isinstance(tr_content, list):
+                            tr_text_parts = []
+                            for tc in tr_content:
+                                if isinstance(tc, dict) and tc.get("type") == "text":
+                                    tr_text_parts.append(tc.get("text", ""))
+                                elif isinstance(tc, str):
+                                    tr_text_parts.append(tc)
+                            tr_content = "\n".join(tr_text_parts)
+                        
+                        tool_results.append({
+                            "content": [{"text": tr_content}],
+                            "status": "success",
+                            "toolUseId": block.get("tool_use_id", "")
+                        })
+                elif isinstance(block, str):
+                    text_parts.append(block)
             
-            # 工具结果需要特殊处理
-            if tool_results:
-                for tr in tool_results:
-                    history.append({
-                        "toolResultMessage": {
-                            "toolUseId": tr["toolUseId"],
-                            "content": tr["content"] if isinstance(tr["content"], str) else json.dumps(tr["content"])
+            content = "\n".join(text_parts) if text_parts else ""
+        
+        # 如果有工具结果
+        if tool_results:
+            if is_last:
+                # 最后一条消息的工具结果
+                current_tool_results = tool_results
+                user_content = content if content else "继续"
+            else:
+                # 非最后一条，加入历史（带 toolResults）
+                history.append({
+                    "userInputMessage": {
+                        "content": content if content else "继续",
+                        "modelId": "claude-sonnet-4",
+                        "origin": "AI_EDITOR",
+                        "userInputMessageContext": {
+                            "toolResults": tool_results
                         }
-                    })
-                continue
+                    }
+                })
+            continue
         
         if role == "user":
-            if system and not history:
-                content = f"{system}\n\n{content}"
-            history.append({
-                "userInputMessage": {
-                    "content": content,
-                    "modelId": "claude-sonnet-4",
-                    "origin": "AI_EDITOR"
-                }
-            })
-            user_content = content
+            if system_text and not history:
+                content = f"{system_text}\n\n{content}"
+            
+            if is_last:
+                user_content = content
+            else:
+                history.append({
+                    "userInputMessage": {
+                        "content": content,
+                        "modelId": "claude-sonnet-4",
+                        "origin": "AI_EDITOR"
+                    }
+                })
         elif role == "assistant":
             # 检查是否有工具调用
             tool_uses = []
+            assistant_text = ""
             if isinstance(msg.get("content"), list):
+                text_parts = []
                 for block in msg["content"]:
-                    if block.get("type") == "tool_use":
-                        tool_uses.append({
-                            "toolUseId": block.get("id", ""),
-                            "name": block.get("name", ""),
-                            "input": json.dumps(block.get("input", {}))
-                        })
+                    if isinstance(block, dict):
+                        if block.get("type") == "tool_use":
+                            tool_uses.append({
+                                "toolUseId": block.get("id", ""),
+                                "name": block.get("name", ""),
+                                "input": block.get("input", {})
+                            })
+                        elif block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                assistant_text = "\n".join(text_parts)
+            else:
+                assistant_text = content if isinstance(content, str) else ""
             
             history.append({
                 "assistantResponseMessage": {
-                    "content": content if isinstance(content, str) else "",
+                    "content": assistant_text,
                     "toolUses": tool_uses
                 }
             })
     
-    # 最后一条是当前消息，不放入历史
-    return user_content, history[:-1] if history else []
+    return user_content, history, current_tool_results
 
 
 def convert_kiro_response_to_anthropic(result: dict, model: str, msg_id: str) -> dict:
