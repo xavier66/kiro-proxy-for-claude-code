@@ -187,7 +187,7 @@ async def api_login_url():
 def run(port: int = 8080):
     import uvicorn
     print(f"\n{'='*50}")
-    print(f"  Kiro API Proxy v1.1.0")
+    print(f"  Kiro API Proxy v1.2.1")
     print(f"  http://localhost:{port}")
     print(f"{'='*50}\n")
     uvicorn.run(app, host="0.0.0.0", port=port)

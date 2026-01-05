@@ -280,7 +280,7 @@ print(response.content[0].text)</code></pre>
     </div>
   </div>
   
-  <div class="footer">Kiro API Proxy v1.1.0 - 多账号轮询 | 会话粘性 | 工具调用支持</div>
+  <div class="footer">Kiro API Proxy v1.2.1 - 多账号轮询 | 会话粘性 | 工具调用支持</div>
 </div>
 
 <script>
