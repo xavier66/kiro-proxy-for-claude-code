@@ -107,32 +107,17 @@ HTML_HEADER = '''
 </header>
 
 <div class="tabs">
-  <div class="tab active" data-tab="chat">对话</div>
+  <div class="tab active" data-tab="help">帮助</div>
   <div class="tab" data-tab="flows">流量</div>
   <div class="tab" data-tab="monitor">监控</div>
   <div class="tab" data-tab="accounts">账号</div>
   <div class="tab" data-tab="logs">日志</div>
   <div class="tab" data-tab="api">API</div>
   <div class="tab" data-tab="docs">文档</div>
-  <div class="tab" data-tab="help">帮助</div>
 </div>
 '''
 
-HTML_CHAT = '''
-<div class="panel active" id="chat">
-  <div class="card">
-    <div style="display:flex;gap:0.5rem;margin-bottom:1rem">
-      <select id="model" style="flex:1"></select>
-      <button class="secondary" onclick="clearChat()">清空</button>
-    </div>
-    <div class="chat-box" id="chatBox"></div>
-    <div class="input-row">
-      <input type="text" id="input" placeholder="输入消息..." onkeydown="if(event.key==='Enter')send()">
-      <button onclick="send()" id="sendBtn">发送</button>
-    </div>
-  </div>
-</div>
-'''
+HTML_CHAT = ''
 
 HTML_FLOWS = '''
 <div class="panel" id="flows">
@@ -321,25 +306,20 @@ HTML_DOCS = '''
 '''
 
 HTML_HELP = '''
-<div class="panel" id="help">
+<div class="panel active" id="help">
   <div class="card">
     <h3>AI 助手 <span style="font-size:0.75rem;color:var(--muted);font-weight:normal">问我如何使用 Kiro Proxy</span></h3>
     <div style="margin-bottom:1rem">
-      <label style="font-size:0.8rem;color:var(--muted)">AI 服务地址</label>
+      <label style="font-size:0.8rem;color:var(--muted)">GLM API 地址（zhipu-ai-proxy）</label>
       <div class="input-row" style="margin-top:0.25rem">
-        <input type="text" id="helpApiUrl" placeholder="http://localhost:3000" value="http://localhost:3000" style="flex:2">
-        <select id="helpModel" style="flex:1">
-          <option value="glm-4.7">GLM-4.7</option>
-          <option value="glm-4.6">GLM-4.6</option>
-          <option value="gpt-4o">GPT-4o</option>
-          <option value="claude-sonnet-4">Claude Sonnet 4</option>
-        </select>
+        <input type="text" id="helpApiUrl" placeholder="http://localhost:3000" value="http://localhost:3000">
       </div>
     </div>
     <div class="chat-box" id="helpChatBox" style="height:300px"></div>
     <div class="input-row" style="margin-top:1rem">
       <input type="text" id="helpInput" placeholder="问我任何关于 Kiro Proxy 的问题..." onkeydown="if(event.key==='Enter')sendHelp()">
       <button onclick="sendHelp()" id="helpSendBtn">发送</button>
+      <button class="secondary" onclick="clearHelp()">清空</button>
     </div>
     <div style="margin-top:0.75rem">
       <span style="font-size:0.75rem;color:var(--muted)">快捷问题：</span>
@@ -380,7 +360,7 @@ HTML_HELP = '''
 </div>
 '''
 
-HTML_BODY = HTML_HEADER + HTML_CHAT + HTML_FLOWS + HTML_MONITOR + HTML_ACCOUNTS + HTML_LOGS + HTML_API + HTML_DOCS + HTML_HELP
+HTML_BODY = HTML_HEADER + HTML_HELP + HTML_FLOWS + HTML_MONITOR + HTML_ACCOUNTS + HTML_LOGS + HTML_API + HTML_DOCS
 
 
 # ==================== JavaScript ====================
@@ -441,66 +421,9 @@ $('#baseUrl').textContent=location.origin;
 $$('.pyUrl').forEach(e=>e.textContent=location.origin);
 '''
 
-JS_MODELS = '''
-// Models
-async function loadModels(){
-  try{
-    const r=await fetch('/v1/models');
-    const d=await r.json();
-    const select=$('#model');
-    select.innerHTML='';
-    (d.data||[]).forEach(m=>{
-      const opt=document.createElement('option');
-      opt.value=m.id;
-      opt.textContent=m.name||m.id;
-      if(m.id==='claude-sonnet-4')opt.selected=true;
-      select.appendChild(opt);
-    });
-  }catch(e){console.error(e)}
-}
-loadModels();
-'''
+JS_MODELS = ''
 
-JS_CHAT = '''
-// Chat
-let messages=[];
-function addMsg(role,text){
-  const box=$('#chatBox');
-  const div=document.createElement('div');
-  div.className='msg '+(role==='user'?'user':'ai');
-  div.innerHTML='<span>'+text.replace(/</g,'&lt;').replace(/\\n/g,'<br>')+'</span>';
-  box.appendChild(div);
-  box.scrollTop=box.scrollHeight;
-}
-function clearChat(){messages=[];$('#chatBox').innerHTML='';}
-async function send(){
-  const input=$('#input');
-  const text=input.value.trim();
-  if(!text)return;
-  input.value='';
-  addMsg('user',text);
-  messages.push({role:'user',content:text});
-  $('#sendBtn').disabled=true;
-  $('#sendBtn').textContent='...';
-  try{
-    const res=await fetch('/v1/chat/completions',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:$('#model').value,messages})
-    });
-    const data=await res.json();
-    if(data.choices&&data.choices[0]){
-      const reply=data.choices[0].message.content;
-      addMsg('ai',reply);
-      messages.push({role:'assistant',content:reply});
-    }else if(data.detail){
-      addMsg('ai','错误: '+data.detail);
-    }
-  }catch(e){addMsg('ai','请求失败: '+e.message)}
-  $('#sendBtn').disabled=false;
-  $('#sendBtn').textContent='发送';
-}
-'''
+JS_CHAT = ''
 
 JS_STATS = '''
 // Stats
@@ -1152,7 +1075,7 @@ function escapeHtml(text){
 '''
 
 JS_HELP = '''
-// AI 助手
+// AI 助手 (调用外部 GLM API)
 const HELP_SYSTEM_PROMPT = `你是 Kiro API Proxy 的 AI 助手。Kiro Proxy 是一个 Kiro IDE API 反向代理服务器。
 
 主要功能：
@@ -1188,6 +1111,11 @@ function addHelpMsg(role, text) {
   box.scrollTop = box.scrollHeight;
 }
 
+function clearHelp() {
+  helpMessages = [];
+  $('#helpChatBox').innerHTML = '';
+}
+
 async function sendHelp() {
   const input = $('#helpInput');
   const text = input.value.trim();
@@ -1200,7 +1128,6 @@ async function sendHelp() {
   $('#helpSendBtn').textContent = '...';
   
   const apiUrl = $('#helpApiUrl').value.trim() || 'http://localhost:3000';
-  const model = $('#helpModel').value;
   
   try {
     const allMessages = [
@@ -1208,10 +1135,11 @@ async function sendHelp() {
       ...helpMessages
     ];
     
+    // 调用外部 GLM API (zhipu-ai-proxy)，使用 glm-4.7 模型
     const res = await fetch(apiUrl + '/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages: allMessages, stream: false })
+      body: JSON.stringify({ model: 'glm-4.7', messages: allMessages, stream: false })
     });
     
     const data = await res.json();
@@ -1225,7 +1153,7 @@ async function sendHelp() {
       addHelpMsg('ai', '无法获取回复');
     }
   } catch (e) {
-    addHelpMsg('ai', '请求失败: ' + e.message + '\\n\\n请确保 AI 服务已启动（如 zhipu-ai-proxy）');
+    addHelpMsg('ai', '请求失败: ' + e.message + '\\n\\n请确保 zhipu-ai-proxy 已启动 (npm start)');
   }
   
   $('#helpSendBtn').disabled = false;
