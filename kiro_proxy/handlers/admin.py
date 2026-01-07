@@ -199,14 +199,32 @@ async def scan_tokens():
                         # 检查是否已添加
                         already_added = any(a.token_path == str(f) for a in state.accounts)
                         
+                        auth_method = data.get("authMethod", "social")
+                        client_id_hash = data.get("clientIdHash")
+                        
+                        # 检查 IdC 配置完整性
+                        idc_complete = None
+                        if auth_method == "idc" and client_id_hash:
+                            hash_file = sso_cache / f"{client_id_hash}.json"
+                            if hash_file.exists():
+                                try:
+                                    with open(hash_file) as hf:
+                                        hash_data = json.load(hf)
+                                        idc_complete = bool(hash_data.get("clientId") and hash_data.get("clientSecret"))
+                                except:
+                                    idc_complete = False
+                            else:
+                                idc_complete = False
+                        
                         found.append({
                             "path": str(f),
                             "name": f.stem,
                             "expires": data.get("expiresAt"),
-                            "auth_method": data.get("authMethod", "social"),
+                            "auth_method": auth_method,
                             "region": data.get("region", "us-east-1"),
                             "has_refresh_token": "refreshToken" in data,
-                            "already_added": already_added
+                            "already_added": already_added,
+                            "idc_config_complete": idc_complete,
                         })
             except:
                 pass

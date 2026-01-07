@@ -453,11 +453,14 @@ async function loadAccounts(){
     $('#accountList').innerHTML=d.accounts.map(a=>{
       const statusBadge=a.status==='active'?'success':a.status==='cooldown'?'warn':'error';
       const statusText={active:'可用',cooldown:'冷却中',unhealthy:'不健康',disabled:'已禁用'}[a.status]||a.status;
+      const authBadge=a.auth_method==='idc'?'info':'success';
+      const authText=a.auth_method==='idc'?'IdC':'Social';
       return `
         <div class="account-card">
           <div class="account-header">
             <div class="account-name">
               <span class="badge ${statusBadge}">${statusText}</span>
+              <span class="badge ${authBadge}">${authText}</span>
               <span>${a.name}</span>
             </div>
             <span style="color:var(--muted);font-size:0.75rem">${a.id}</span>
@@ -467,6 +470,7 @@ async function loadAccounts(){
             <div class="account-meta-item"><span>错误数</span><span>${a.error_count}</span></div>
             <div class="account-meta-item"><span>Token</span><span class="badge ${a.token_expired?'error':a.token_expiring_soon?'warn':'success'}">${a.token_expired?'已过期':a.token_expiring_soon?'即将过期':'有效'}</span></div>
             ${a.cooldown_remaining?`<div class="account-meta-item"><span>冷却剩余</span><span>${a.cooldown_remaining}秒</span></div>`:''}
+            ${a.auth_method==='idc'?`<div class="account-meta-item"><span>IdC配置</span><span class="badge ${a.idc_config_complete?'success':'error'}">${a.idc_config_complete?'完整':'不完整'}</span></div>`:''}
           </div>
           <div class="account-actions">
             <button class="secondary small" onclick="refreshToken('${a.id}')">刷新 Token</button>
@@ -567,19 +571,24 @@ async function scanTokens(){
     const list=$('#scanList');
     if(d.tokens&&d.tokens.length>0){
       panel.style.display='block';
-      list.innerHTML=d.tokens.map(t=>`
+      list.innerHTML=d.tokens.map(t=>{
+        const authBadge=t.auth_method==='idc'?'info':'success';
+        const authText=t.auth_method==='idc'?'IdC':'Social';
+        const idcWarning=t.auth_method==='idc'&&t.idc_config_complete===false?'<span class="badge error" style="margin-left:0.5rem">配置不完整</span>':'';
+        return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem;border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem">
           <div>
             <div>${t.name}</div>
             <div style="color:var(--muted);font-size:0.75rem">${t.path}</div>
             <div style="font-size:0.75rem;margin-top:0.25rem">
               <span class="badge ${t.has_refresh_token?'success':'warn'}">${t.has_refresh_token?'可刷新':'无刷新'}</span>
-              <span style="color:var(--muted);margin-left:0.5rem">${t.auth_method}</span>
+              <span class="badge ${authBadge}" style="margin-left:0.25rem">${authText}</span>
+              ${idcWarning}
             </div>
           </div>
           ${t.already_added?'<span class="badge info">已添加</span>':`<button class="secondary small" onclick="addFromScan('${t.path}','${t.name}')">添加</button>`}
         </div>
-      `).join('');
+      `}).join('');
     }else{
       alert('未找到 Token 文件');
     }
