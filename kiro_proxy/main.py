@@ -240,12 +240,142 @@ async def api_health_check():
     return await admin.run_health_check()
 
 
+@app.get("/api/browsers")
+async def api_browsers():
+    """获取可用浏览器列表"""
+    return await admin.get_browsers()
+
+
+# ==================== Kiro 登录 API ====================
+
+@app.post("/api/kiro/login/start")
+async def api_kiro_login_start(request: Request):
+    """启动 Kiro 设备授权登录"""
+    return await admin.start_kiro_login(request)
+
+
+@app.get("/api/kiro/login/poll")
+async def api_kiro_login_poll():
+    """轮询登录状态"""
+    return await admin.poll_kiro_login()
+
+
+@app.post("/api/kiro/login/cancel")
+async def api_kiro_login_cancel():
+    """取消登录"""
+    return await admin.cancel_kiro_login()
+
+
+@app.get("/api/kiro/login/status")
+async def api_kiro_login_status():
+    """获取登录状态"""
+    return await admin.get_kiro_login_status()
+
+
+# ==================== Social Auth API (Google/GitHub) ====================
+
+@app.post("/api/kiro/social/start")
+async def api_social_login_start(request: Request):
+    """启动 Social Auth 登录"""
+    return await admin.start_social_login(request)
+
+
+@app.post("/api/kiro/social/exchange")
+async def api_social_token_exchange(request: Request):
+    """交换 Social Auth Token"""
+    return await admin.exchange_social_token(request)
+
+
+@app.post("/api/kiro/social/cancel")
+async def api_social_login_cancel():
+    """取消 Social Auth 登录"""
+    return await admin.cancel_social_login()
+
+
+@app.get("/api/kiro/social/status")
+async def api_social_login_status():
+    """获取 Social Auth 状态"""
+    return await admin.get_social_login_status()
+
+
+# ==================== Flow Monitor API ====================
+
+@app.get("/api/flows")
+async def api_flows(
+    protocol: str = None,
+    model: str = None,
+    account_id: str = None,
+    state: str = None,
+    has_error: bool = None,
+    bookmarked: bool = None,
+    search: str = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """查询 Flows"""
+    return await admin.get_flows(
+        protocol=protocol,
+        model=model,
+        account_id=account_id,
+        state_filter=state,
+        has_error=has_error,
+        bookmarked=bookmarked,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/api/flows/stats")
+async def api_flow_stats():
+    """获取 Flow 统计"""
+    return await admin.get_flow_stats()
+
+
+@app.get("/api/flows/{flow_id}")
+async def api_flow_detail(flow_id: str):
+    """获取 Flow 详情"""
+    return await admin.get_flow_detail(flow_id)
+
+
+@app.post("/api/flows/{flow_id}/bookmark")
+async def api_bookmark_flow(flow_id: str, request: Request):
+    """书签 Flow"""
+    return await admin.bookmark_flow(flow_id, request)
+
+
+@app.post("/api/flows/{flow_id}/note")
+async def api_add_flow_note(flow_id: str, request: Request):
+    """添加 Flow 备注"""
+    return await admin.add_flow_note(flow_id, request)
+
+
+@app.post("/api/flows/{flow_id}/tag")
+async def api_add_flow_tag(flow_id: str, request: Request):
+    """添加 Flow 标签"""
+    return await admin.add_flow_tag(flow_id, request)
+
+
+@app.post("/api/flows/export")
+async def api_export_flows(request: Request):
+    """导出 Flows"""
+    return await admin.export_flows(request)
+
+
+# ==================== Usage API ====================
+
+@app.get("/api/accounts/{account_id}/usage")
+async def api_account_usage(account_id: str):
+    """获取账号用量信息"""
+    return await admin.get_account_usage_info(account_id)
+
+
 # ==================== 启动 ====================
 
 def run(port: int = 8080):
     import uvicorn
     print(f"\n{'='*50}")
-    print(f"  Kiro API Proxy v1.4.0")
+    print(f"  Kiro API Proxy v1.5.0")
     print(f"  http://localhost:{port}")
     print(f"{'='*50}\n")
     uvicorn.run(app, host="0.0.0.0", port=port)

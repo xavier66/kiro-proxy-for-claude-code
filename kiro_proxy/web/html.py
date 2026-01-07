@@ -108,6 +108,7 @@ HTML_HEADER = '''
 
 <div class="tabs">
   <div class="tab active" data-tab="chat">对话</div>
+  <div class="tab" data-tab="flows">流量</div>
   <div class="tab" data-tab="monitor">监控</div>
   <div class="tab" data-tab="accounts">账号</div>
   <div class="tab" data-tab="logs">日志</div>
@@ -128,6 +129,41 @@ HTML_CHAT = '''
       <input type="text" id="input" placeholder="输入消息..." onkeydown="if(event.key==='Enter')send()">
       <button onclick="send()" id="sendBtn">发送</button>
     </div>
+  </div>
+</div>
+'''
+
+HTML_FLOWS = '''
+<div class="panel" id="flows">
+  <div class="card">
+    <h3>Flow 统计 <button class="secondary small" onclick="loadFlowStats()">刷新</button></h3>
+    <div class="stats-grid" id="flowStatsGrid"></div>
+  </div>
+  <div class="card">
+    <h3>流量监控</h3>
+    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+      <select id="flowProtocol" onchange="loadFlows()">
+        <option value="">全部协议</option>
+        <option value="anthropic">Anthropic</option>
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Gemini</option>
+      </select>
+      <select id="flowState" onchange="loadFlows()">
+        <option value="">全部状态</option>
+        <option value="completed">完成</option>
+        <option value="error">错误</option>
+        <option value="streaming">流式中</option>
+        <option value="pending">等待中</option>
+      </select>
+      <input type="text" id="flowSearch" placeholder="搜索内容..." style="flex:1;min-width:150px" onkeydown="if(event.key==='Enter')loadFlows()">
+      <button class="secondary" onclick="loadFlows()">搜索</button>
+      <button class="secondary" onclick="exportFlows()">导出</button>
+    </div>
+    <div id="flowList"></div>
+  </div>
+  <div class="card" id="flowDetail" style="display:none">
+    <h3>Flow 详情 <button class="secondary small" onclick="$('#flowDetail').style.display='none'">关闭</button></h3>
+    <div id="flowDetailContent"></div>
   </div>
 </div>
 '''
@@ -155,6 +191,7 @@ HTML_ACCOUNTS = '''
   <div class="card">
     <h3>账号管理</h3>
     <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+      <button onclick="showLoginOptions()">在线登录</button>
       <button class="secondary" onclick="scanTokens()">扫描 Token</button>
       <button class="secondary" onclick="showAddAccount()">手动添加</button>
       <button class="secondary" onclick="refreshAllTokens()">刷新所有 Token</button>
@@ -162,21 +199,51 @@ HTML_ACCOUNTS = '''
     </div>
     <div id="accountList"></div>
   </div>
+  <div class="card" id="loginOptions" style="display:none">
+    <h3>选择登录方式 <button class="secondary small" onclick="$('#loginOptions').style.display='none'">关闭</button></h3>
+    <div style="margin-bottom:1rem">
+      <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+        <input type="checkbox" id="incognitoMode"> 无痕/隐私模式打开
+      </label>
+    </div>
+    <div style="margin-bottom:1rem">
+      <p style="color:var(--muted);font-size:0.875rem;margin-bottom:0.5rem">选择浏览器：</p>
+      <div id="browserList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0.5rem;margin-bottom:1rem"></div>
+    </div>
+    <div>
+      <p style="color:var(--muted);font-size:0.875rem;margin-bottom:0.5rem">选择登录方式：</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem">
+        <button class="secondary" onclick="startSocialLogin('google')" style="display:flex;align-items:center;justify-content:center;gap:0.5rem">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Google
+        </button>
+        <button class="secondary" onclick="startSocialLogin('github')" style="display:flex;align-items:center;justify-content:center;gap:0.5rem">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </button>
+        <button class="secondary" onclick="startAwsLogin()" style="display:flex;align-items:center;justify-content:center;gap:0.5rem">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#FF9900"><path d="M6.763 10.036c0 .296.032.535.088.71.064.176.144.368.256.576.04.063.056.127.056.183 0 .08-.048.16-.152.24l-.503.335a.383.383 0 0 1-.208.072c-.08 0-.16-.04-.239-.112a2.47 2.47 0 0 1-.287-.375 6.18 6.18 0 0 1-.248-.471c-.622.734-1.405 1.101-2.347 1.101-.67 0-1.205-.191-1.596-.574-.391-.384-.59-.894-.59-1.533 0-.678.239-1.23.726-1.644.487-.415 1.133-.623 1.955-.623.272 0 .551.024.846.064.296.04.6.104.918.176v-.583c0-.607-.127-1.03-.375-1.277-.255-.248-.686-.367-1.3-.367-.28 0-.568.031-.863.103-.296.072-.583.16-.862.272a2.287 2.287 0 0 1-.28.104.488.488 0 0 1-.127.023c-.112 0-.168-.08-.168-.247v-.391c0-.128.016-.224.056-.28a.597.597 0 0 1 .224-.167c.279-.144.614-.264 1.005-.36a4.84 4.84 0 0 1 1.246-.151c.95 0 1.644.216 2.091.647.439.43.662 1.085.662 1.963v2.586zm-3.24 1.214c.263 0 .534-.048.822-.144.287-.096.543-.271.758-.51.128-.152.224-.32.272-.512.047-.191.08-.423.08-.694v-.335a6.66 6.66 0 0 0-.735-.136 6.02 6.02 0 0 0-.75-.048c-.535 0-.926.104-1.19.32-.263.215-.39.518-.39.917 0 .375.095.655.295.846.191.2.47.296.838.296zm6.41.862c-.144 0-.24-.024-.304-.08-.064-.048-.12-.16-.168-.311L7.586 5.55a1.398 1.398 0 0 1-.072-.32c0-.128.064-.2.191-.2h.783c.151 0 .255.025.31.08.065.048.113.16.16.312l1.342 5.284 1.245-5.284c.04-.16.088-.264.151-.312a.549.549 0 0 1 .32-.08h.638c.152 0 .256.025.32.08.063.048.12.16.151.312l1.261 5.348 1.381-5.348c.048-.16.104-.264.16-.312a.52.52 0 0 1 .311-.08h.743c.127 0 .2.065.2.2 0 .04-.009.08-.017.128a1.137 1.137 0 0 1-.056.2l-1.923 6.17c-.048.16-.104.263-.168.311a.51.51 0 0 1-.303.08h-.687c-.151 0-.255-.024-.32-.08-.063-.056-.119-.16-.15-.32l-1.238-5.148-1.23 5.14c-.04.16-.087.264-.15.32-.065.056-.177.08-.32.08zm10.256.215c-.415 0-.83-.048-1.229-.143-.399-.096-.71-.2-.918-.32-.128-.071-.215-.151-.247-.223a.563.563 0 0 1-.048-.224v-.407c0-.167.064-.247.183-.247.048 0 .096.008.144.024.048.016.12.048.2.08.271.12.566.215.878.279.319.064.63.096.95.096.502 0 .894-.088 1.165-.264a.86.86 0 0 0 .415-.758.777.777 0 0 0-.215-.559c-.144-.151-.416-.287-.807-.415l-1.157-.36c-.583-.183-1.014-.454-1.277-.813a1.902 1.902 0 0 1-.4-1.158c0-.335.073-.63.216-.886.144-.255.335-.479.575-.654.24-.184.51-.32.83-.415.32-.096.655-.136 1.006-.136.175 0 .359.008.535.032.183.024.35.056.518.088.16.04.312.08.455.127.144.048.256.096.336.144a.69.69 0 0 1 .24.2.43.43 0 0 1 .071.263v.375c0 .168-.064.256-.184.256a.83.83 0 0 1-.303-.096 3.652 3.652 0 0 0-1.532-.311c-.455 0-.815.071-1.062.223-.248.152-.375.383-.375.71 0 .224.08.416.24.567.159.152.454.304.877.44l1.134.358c.574.184.99.44 1.237.767.247.327.367.702.367 1.117 0 .343-.072.655-.207.926-.144.272-.336.511-.583.703-.248.2-.543.343-.886.447-.36.111-.734.167-1.142.167zM21.698 16.207c-2.626 1.94-6.442 2.969-9.722 2.969-4.598 0-8.74-1.7-11.87-4.526-.247-.223-.024-.527.27-.351 3.384 1.963 7.559 3.153 11.877 3.153 2.914 0 6.114-.607 9.06-1.852.439-.2.814.287.385.607zM22.792 14.961c-.336-.43-2.22-.207-3.074-.103-.255.032-.295-.192-.063-.36 1.5-1.053 3.967-.75 4.254-.399.287.36-.08 2.826-1.485 4.007-.215.184-.423.088-.327-.151.32-.79 1.03-2.57.695-2.994z"/></svg>
+          AWS
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="card" id="loginPanel" style="display:none">
+    <h3>Kiro 在线登录 <button class="secondary small" onclick="cancelKiroLogin()">取消</button></h3>
+    <div id="loginContent"></div>
+  </div>
   <div class="card" id="scanResults" style="display:none">
     <h3>扫描结果</h3>
     <div id="scanList"></div>
   </div>
   <div class="card">
-    <h3>Kiro 登录说明</h3>
+    <h3>登录方式</h3>
     <p style="color:var(--muted);font-size:0.875rem;margin-bottom:0.5rem">
-      Kiro 使用 AWS Identity Center 认证，需要通过 Kiro IDE 登录：
+      <strong>方式一：在线登录（推荐）</strong> - 点击上方"在线登录"按钮，浏览器授权
     </p>
-    <ol style="color:var(--muted);font-size:0.875rem;padding-left:1.5rem">
-      <li>打开 Kiro IDE</li>
-      <li>点击登录，使用 Google/GitHub 账号</li>
-      <li>登录成功后 token 自动保存</li>
-      <li>点击上方"扫描 Token"添加账号</li>
-    </ol>
+    <p style="color:var(--muted);font-size:0.875rem;margin-bottom:0.5rem">
+      <strong>方式二：扫描 Token</strong> - 从 Kiro IDE 登录后扫描本地 Token
+    </p>
   </div>
 </div>
 '''
@@ -239,18 +306,20 @@ HTML_DOCS = '''
     </table>
   </div>
   <div class="card">
-    <h3>新功能 v1.3.0</h3>
+    <h3>新功能 v1.5.0</h3>
     <ul style="color:var(--muted);font-size:0.875rem;padding-left:1.5rem">
+      <li><strong>用量查询</strong> - 查询账号配额使用情况</li>
+      <li><strong>多登录方式</strong> - 支持 Google/GitHub/AWS 登录</li>
+      <li><strong>流量监控</strong> - 完整的 LLM 请求监控</li>
+      <li><strong>浏览器选择</strong> - 自动检测并选择浏览器</li>
       <li><strong>Token 自动刷新</strong> - 检测过期自动刷新</li>
-      <li><strong>动态 Machine ID</strong> - 每个账号独立指纹</li>
       <li><strong>配额管理</strong> - 429 自动冷却和恢复</li>
-      <li><strong>自动账号切换</strong> - 配额超限自动切换</li>
     </ul>
   </div>
 </div>
 '''
 
-HTML_BODY = HTML_HEADER + HTML_CHAT + HTML_MONITOR + HTML_ACCOUNTS + HTML_LOGS + HTML_API + HTML_DOCS
+HTML_BODY = HTML_HEADER + HTML_CHAT + HTML_FLOWS + HTML_MONITOR + HTML_ACCOUNTS + HTML_LOGS + HTML_API + HTML_DOCS
 
 
 # ==================== JavaScript ====================
@@ -285,6 +354,7 @@ $$('.tab').forEach(t=>t.onclick=()=>{
   if(t.dataset.tab==='monitor'){loadStats();loadQuota();}
   if(t.dataset.tab==='logs')loadLogs();
   if(t.dataset.tab==='accounts')loadAccounts();
+  if(t.dataset.tab==='flows'){loadFlowStats();loadFlows();}
 });
 '''
 
@@ -472,7 +542,9 @@ async function loadAccounts(){
             ${a.cooldown_remaining?`<div class="account-meta-item"><span>冷却剩余</span><span>${a.cooldown_remaining}秒</span></div>`:''}
             ${a.auth_method==='idc'?`<div class="account-meta-item"><span>IdC配置</span><span class="badge ${a.idc_config_complete?'success':'error'}">${a.idc_config_complete?'完整':'不完整'}</span></div>`:''}
           </div>
+          <div id="usage-${a.id}" class="account-usage" style="display:none;margin-top:0.75rem;padding:0.75rem;background:var(--bg);border-radius:6px"></div>
           <div class="account-actions">
+            <button class="secondary small" onclick="queryUsage('${a.id}')">查询用量</button>
             <button class="secondary small" onclick="refreshToken('${a.id}')">刷新 Token</button>
             <button class="secondary small" onclick="viewAccountDetail('${a.id}')">详情</button>
             ${a.status==='cooldown'?`<button class="secondary small" onclick="restoreAccount('${a.id}')">恢复</button>`:''}
@@ -483,6 +555,43 @@ async function loadAccounts(){
       `;
     }).join('');
   }catch(e){console.error(e)}
+}
+
+async function queryUsage(id){
+  const usageDiv=$('#usage-'+id);
+  usageDiv.style.display='block';
+  usageDiv.innerHTML='<span style="color:var(--muted)">查询中...</span>';
+  
+  try{
+    const r=await fetch('/api/accounts/'+id+'/usage');
+    const d=await r.json();
+    if(d.ok){
+      const u=d.usage;
+      const pct=u.usage_limit>0?((u.current_usage/u.usage_limit)*100).toFixed(1):0;
+      const barColor=u.is_low_balance?'var(--error)':'var(--success)';
+      usageDiv.innerHTML=`
+        <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem">
+          <span style="font-weight:500">${u.subscription_title}</span>
+          <span class="badge ${u.is_low_balance?'error':'success'}">${u.is_low_balance?'余额不足':'正常'}</span>
+        </div>
+        <div style="background:var(--border);border-radius:4px;height:8px;margin-bottom:0.5rem;overflow:hidden">
+          <div style="background:${barColor};height:100%;width:${pct}%;transition:width 0.3s"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;font-size:0.8rem">
+          <div><span style="color:var(--muted)">已用:</span> ${u.current_usage.toFixed(2)}</div>
+          <div><span style="color:var(--muted)">总额:</span> ${u.usage_limit.toFixed(2)}</div>
+          <div><span style="color:var(--muted)">余额:</span> ${u.balance.toFixed(2)}</div>
+          <div><span style="color:var(--muted)">使用率:</span> ${pct}%</div>
+          ${u.free_trial_limit>0?`<div><span style="color:var(--muted)">试用:</span> ${u.free_trial_usage.toFixed(2)}/${u.free_trial_limit.toFixed(2)}</div>`:''}
+          ${u.bonus_limit>0?`<div><span style="color:var(--muted)">奖励:</span> ${u.bonus_usage.toFixed(2)}/${u.bonus_limit.toFixed(2)}</div>`:''}
+        </div>
+      `;
+    }else{
+      usageDiv.innerHTML=`<span style="color:var(--error)">查询失败: ${d.error}</span>`;
+    }
+  }catch(e){
+    usageDiv.innerHTML=`<span style="color:var(--error)">查询失败: ${e.message}</span>`;
+  }
 }
 
 async function refreshToken(id){
@@ -626,9 +735,362 @@ async function checkTokens(){
     alert(msg);
   }catch(e){alert('检查失败: '+e.message)}
 }
+
+// Kiro 在线登录
+let loginPollTimer=null;
+let availableBrowsers=[];
+let selectedBrowser='default';
+
+async function showLoginOptions(){
+  try{
+    const r=await fetch('/api/browsers');
+    const d=await r.json();
+    availableBrowsers=d.browsers||[];
+    if(availableBrowsers.length>0){
+      $('#browserList').innerHTML=availableBrowsers.map(b=>`
+        <button class="${b.id==='default'?'':'secondary'} small" onclick="selectBrowser('${b.id}',this)" data-browser="${b.id}">
+          ${b.name}${b.supports_incognito?' *':''}
+        </button>
+      `).join('');
+    }
+    selectedBrowser='default';
+    $('#loginOptions').style.display='block';
+  }catch(e){
+    $('#loginOptions').style.display='block';
+  }
+}
+
+function selectBrowser(id,btn){
+  selectedBrowser=id;
+  $$('#browserList button').forEach(b=>b.classList.add('secondary'));
+  btn.classList.remove('secondary');
+}
+
+async function startSocialLogin(provider){
+  const incognito=$('#incognitoMode')?.checked||false;
+  $('#loginOptions').style.display='none';
+  
+  try{
+    const r=await fetch('/api/kiro/social/start',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({provider,browser:selectedBrowser,incognito})
+    });
+    const d=await r.json();
+    if(!d.ok){
+      alert('启动登录失败: '+d.error);
+      return;
+    }
+    showSocialLoginPanel(d.provider);
+  }catch(e){alert('启动登录失败: '+e.message)}
+}
+
+function showSocialLoginPanel(provider){
+  $('#loginPanel').style.display='block';
+  $('#loginContent').innerHTML=`
+    <div style="text-align:center;padding:1rem">
+      <p style="margin-bottom:1rem">正在使用 ${provider} 登录...</p>
+      <p style="color:var(--muted);font-size:0.875rem">请在浏览器中完成授权</p>
+      <p style="color:var(--muted);font-size:0.875rem;margin-top:1rem">授权完成后，请将浏览器地址栏中的完整 URL 粘贴到下方：</p>
+      <input type="text" id="callbackUrl" placeholder="粘贴回调 URL..." style="width:100%;margin-top:0.5rem">
+      <button onclick="handleSocialCallback()" style="margin-top:0.5rem">提交</button>
+      <p style="color:var(--muted);font-size:0.75rem;margin-top:0.5rem" id="loginStatus"></p>
+    </div>
+  `;
+}
+
+async function handleSocialCallback(){
+  const url=$('#callbackUrl').value;
+  if(!url){
+    alert('请粘贴回调 URL');
+    return;
+  }
+  
+  try{
+    const urlObj=new URL(url);
+    const code=urlObj.searchParams.get('code');
+    const state=urlObj.searchParams.get('state');
+    
+    if(!code||!state){
+      alert('无效的回调 URL');
+      return;
+    }
+    
+    $('#loginStatus').textContent='正在交换 Token...';
+    
+    const r=await fetch('/api/kiro/social/exchange',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code,state})
+    });
+    const d=await r.json();
+    
+    if(d.ok&&d.completed){
+      $('#loginStatus').textContent='✅ '+d.message;
+      $('#loginStatus').style.color='var(--success)';
+      setTimeout(()=>{
+        $('#loginPanel').style.display='none';
+        loadAccounts();
+      },1500);
+    }else{
+      $('#loginStatus').textContent='❌ '+(d.error||'登录失败');
+      $('#loginStatus').style.color='var(--error)';
+    }
+  }catch(e){
+    alert('处理回调失败: '+e.message);
+  }
+}
+
+async function startAwsLogin(){
+  const incognito=$('#incognitoMode')?.checked||false;
+  $('#loginOptions').style.display='none';
+  startKiroLogin(selectedBrowser);
+}
+
+async function startKiroLogin(browser='default'){
+  const incognito=$('#incognitoMode')?.checked||false;
+  try{
+    const r=await fetch('/api/kiro/login/start',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({browser,incognito})
+    });
+    const d=await r.json();
+    if(!d.ok){
+      alert('启动登录失败: '+d.error);
+      return;
+    }
+    showLoginPanel(d);
+    startLoginPoll();
+  }catch(e){alert('启动登录失败: '+e.message)}
+}
+
+function showLoginPanel(data){
+  $('#loginPanel').style.display='block';
+  $('#loginContent').innerHTML=`
+    <div style="text-align:center;padding:1rem">
+      <p style="margin-bottom:1rem">请在浏览器中完成 AWS Builder ID 授权：</p>
+      <div style="font-size:2rem;font-weight:bold;letter-spacing:0.5rem;padding:1rem;background:var(--bg);border-radius:8px;margin-bottom:1rem">${data.user_code}</div>
+      <p style="margin-bottom:1rem">
+        <a href="${data.verification_uri}" target="_blank" style="color:var(--info);text-decoration:underline">点击打开授权页面</a>
+        <button class="secondary small" style="margin-left:0.5rem" onclick="copy('${data.verification_uri}')">复制链接</button>
+      </p>
+      <p style="color:var(--muted);font-size:0.875rem">授权码有效期: ${Math.floor(data.expires_in/60)} 分钟</p>
+      <p style="color:var(--muted);font-size:0.875rem;margin-top:0.5rem" id="loginStatus">等待授权...</p>
+    </div>
+  `;
+}
+
+function startLoginPoll(){
+  if(loginPollTimer)clearInterval(loginPollTimer);
+  loginPollTimer=setInterval(pollLogin,3000);
+}
+
+async function pollLogin(){
+  try{
+    const r=await fetch('/api/kiro/login/poll');
+    const d=await r.json();
+    if(!d.ok){
+      $('#loginStatus').textContent='错误: '+d.error;
+      $('#loginStatus').style.color='var(--error)';
+      stopLoginPoll();
+      return;
+    }
+    if(d.completed){
+      $('#loginStatus').textContent='✅ 登录成功！';
+      $('#loginStatus').style.color='var(--success)';
+      stopLoginPoll();
+      setTimeout(()=>{
+        $('#loginPanel').style.display='none';
+        loadAccounts();
+      },1500);
+    }else{
+      $('#loginStatus').textContent='等待授权...';
+    }
+  }catch(e){
+    $('#loginStatus').textContent='轮询失败: '+e.message;
+  }
+}
+
+function stopLoginPoll(){
+  if(loginPollTimer){
+    clearInterval(loginPollTimer);
+    loginPollTimer=null;
+  }
+}
+
+async function cancelKiroLogin(){
+  stopLoginPoll();
+  await fetch('/api/kiro/login/cancel',{method:'POST'});
+  $('#loginPanel').style.display='none';
+}
 '''
 
-JS_SCRIPTS = JS_UTILS + JS_TABS + JS_STATUS + JS_MODELS + JS_CHAT + JS_STATS + JS_LOGS + JS_ACCOUNTS
+JS_FLOWS = '''
+// Flow Monitor
+async function loadFlowStats(){
+  try{
+    const r=await fetch('/api/flows/stats');
+    const d=await r.json();
+    $('#flowStatsGrid').innerHTML=`
+      <div class="stat-item"><div class="stat-value">${d.total_flows}</div><div class="stat-label">总请求</div></div>
+      <div class="stat-item"><div class="stat-value">${d.completed}</div><div class="stat-label">完成</div></div>
+      <div class="stat-item"><div class="stat-value">${d.errors}</div><div class="stat-label">错误</div></div>
+      <div class="stat-item"><div class="stat-value">${d.error_rate}</div><div class="stat-label">错误率</div></div>
+      <div class="stat-item"><div class="stat-value">${d.avg_duration_ms.toFixed(0)}ms</div><div class="stat-label">平均延迟</div></div>
+      <div class="stat-item"><div class="stat-value">${d.total_tokens_in}</div><div class="stat-label">输入Token</div></div>
+      <div class="stat-item"><div class="stat-value">${d.total_tokens_out}</div><div class="stat-label">输出Token</div></div>
+    `;
+  }catch(e){console.error(e)}
+}
+
+async function loadFlows(){
+  try{
+    const protocol=$('#flowProtocol').value;
+    const state=$('#flowState').value;
+    const search=$('#flowSearch').value;
+    let url='/api/flows?limit=50';
+    if(protocol)url+=`&protocol=${protocol}`;
+    if(state)url+=`&state=${state}`;
+    if(search)url+=`&search=${encodeURIComponent(search)}`;
+    
+    const r=await fetch(url);
+    const d=await r.json();
+    
+    if(!d.flows||d.flows.length===0){
+      $('#flowList').innerHTML='<p style="color:var(--muted)">暂无请求记录</p>';
+      return;
+    }
+    
+    $('#flowList').innerHTML=d.flows.map(f=>{
+      const stateBadge={completed:'success',error:'error',streaming:'info',pending:'warn'}[f.state]||'info';
+      const stateText={completed:'完成',error:'错误',streaming:'流式中',pending:'等待中'}[f.state]||f.state;
+      const time=new Date(f.timing.created_at*1000).toLocaleTimeString();
+      const duration=f.timing.duration_ms?f.timing.duration_ms.toFixed(0)+'ms':'-';
+      const model=f.request?.model||'-';
+      const tokens=f.response?.usage?(f.response.usage.input_tokens+'/'+f.response.usage.output_tokens):'-';
+      
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem;border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem;cursor:pointer" onclick="viewFlow('${f.id}')">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:0.5rem">
+              <span class="badge ${stateBadge}">${stateText}</span>
+              <span style="font-weight:500">${model}</span>
+              ${f.bookmarked?'<span style="color:var(--warn)">★</span>':''}
+            </div>
+            <div style="color:var(--muted);font-size:0.75rem;margin-top:0.25rem">
+              ${time} · ${duration} · ${tokens} tokens · ${f.protocol}
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem">
+            <button class="secondary small" onclick="event.stopPropagation();toggleBookmark('${f.id}',${!f.bookmarked})">${f.bookmarked?'取消':'收藏'}</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }catch(e){console.error(e)}
+}
+
+async function viewFlow(id){
+  try{
+    const r=await fetch('/api/flows/'+id);
+    const f=await r.json();
+    
+    let html=`
+      <div style="margin-bottom:1rem">
+        <strong>ID:</strong> ${f.id}<br>
+        <strong>协议:</strong> ${f.protocol}<br>
+        <strong>状态:</strong> ${f.state}<br>
+        <strong>账号:</strong> ${f.account_name||f.account_id||'N/A'}<br>
+        <strong>时间:</strong> ${new Date(f.timing.created_at*1000).toLocaleString()}<br>
+        <strong>延迟:</strong> ${f.timing.duration_ms?f.timing.duration_ms.toFixed(0)+'ms':'N/A'}<br>
+      </div>
+    `;
+    
+    if(f.request){
+      html+=`
+        <h4 style="margin-bottom:0.5rem">请求</h4>
+        <div style="margin-bottom:1rem">
+          <strong>模型:</strong> ${f.request.model}<br>
+          <strong>流式:</strong> ${f.request.stream?'是':'否'}<br>
+          <strong>消息数:</strong> ${f.request.messages?.length||0}<br>
+        </div>
+      `;
+      if(f.request.system){
+        html+=`<div style="margin-bottom:0.5rem"><strong>System:</strong></div><pre style="max-height:100px;overflow:auto">${escapeHtml(f.request.system)}</pre>`;
+      }
+      if(f.request.messages&&f.request.messages.length>0){
+        html+=`<div style="margin-bottom:0.5rem"><strong>Messages:</strong></div>`;
+        f.request.messages.slice(-3).forEach(m=>{
+          const content=typeof m.content==='string'?m.content:JSON.stringify(m.content);
+          html+=`<div style="margin-bottom:0.5rem"><span class="badge info">${m.role}</span> ${escapeHtml(content.substring(0,200))}${content.length>200?'...':''}</div>`;
+        });
+      }
+    }
+    
+    if(f.response){
+      html+=`
+        <h4 style="margin-top:1rem;margin-bottom:0.5rem">响应</h4>
+        <div style="margin-bottom:1rem">
+          <strong>状态码:</strong> ${f.response.status_code}<br>
+          <strong>停止原因:</strong> ${f.response.stop_reason||'N/A'}<br>
+          <strong>Token:</strong> ${f.response.usage?.input_tokens||0} in / ${f.response.usage?.output_tokens||0} out<br>
+        </div>
+      `;
+      if(f.response.content){
+        html+=`<div style="margin-bottom:0.5rem"><strong>Content:</strong></div><pre style="max-height:200px;overflow:auto">${escapeHtml(f.response.content.substring(0,2000))}${f.response.content.length>2000?'...':''}</pre>`;
+      }
+    }
+    
+    if(f.error){
+      html+=`
+        <h4 style="margin-top:1rem;margin-bottom:0.5rem;color:var(--error)">错误</h4>
+        <div>
+          <strong>类型:</strong> ${f.error.type}<br>
+          <strong>消息:</strong> ${f.error.message}<br>
+        </div>
+      `;
+    }
+    
+    $('#flowDetailContent').innerHTML=html;
+    $('#flowDetail').style.display='block';
+  }catch(e){alert('获取详情失败: '+e.message)}
+}
+
+async function toggleBookmark(id,bookmarked){
+  await fetch('/api/flows/'+id+'/bookmark',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({bookmarked})
+  });
+  loadFlows();
+}
+
+async function exportFlows(){
+  try{
+    const r=await fetch('/api/flows/export',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({format:'json'})
+    });
+    const d=await r.json();
+    const blob=new Blob([d.content],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='flows_'+new Date().toISOString().slice(0,10)+'.json';
+    a.click();
+  }catch(e){alert('导出失败: '+e.message)}
+}
+
+function escapeHtml(text){
+  const div=document.createElement('div');
+  div.textContent=text;
+  return div.innerHTML;
+}
+'''
+
+JS_SCRIPTS = JS_UTILS + JS_TABS + JS_STATUS + JS_MODELS + JS_CHAT + JS_STATS + JS_LOGS + JS_ACCOUNTS + JS_FLOWS
 
 
 # ==================== 组装最终 HTML ====================
@@ -646,7 +1108,7 @@ HTML_PAGE = f'''<!DOCTYPE html>
 <body>
 <div class="container">
 {HTML_BODY}
-<div class="footer">Kiro API Proxy v1.3.0 - Token 自动刷新 | 动态指纹 | 配额管理</div>
+<div class="footer">Kiro API Proxy v1.5.0 - Flow Monitor | 在线登录 | Token 自动刷新 | 配额管理</div>
 </div>
 <script>
 {JS_SCRIPTS}

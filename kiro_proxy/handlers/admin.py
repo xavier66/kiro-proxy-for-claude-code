@@ -9,8 +9,10 @@ from dataclasses import asdict
 from fastapi import Request, HTTPException, Query
 
 from ..config import TOKEN_PATH, MODELS_URL
-from ..core import state, Account, stats_manager
+from ..core import state, Account, stats_manager, get_browsers_info, open_url, flow_monitor, get_account_usage
 from ..credential import quota_manager, generate_machine_id, get_kiro_version, CredentialStatus
+from ..auth import start_device_flow, poll_device_flow, cancel_device_flow, get_login_state, save_credentials_to_file
+from ..auth import start_social_auth, exchange_social_auth_token, cancel_social_auth, get_social_auth_state
 
 
 async def get_status():
@@ -462,3 +464,298 @@ async def run_health_check():
         "unhealthy": len(results) - healthy_count,
         "results": results
     }
+
+
+# ==================== Kiro 登录 API ====================
+
+async def get_browsers():
+    """获取可用浏览器列表"""
+    return {"browsers": get_browsers_info()}
+
+
+async def start_kiro_login(request: Request):
+    """启动 Kiro 设备授权登录"""
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    region = body.get("region", "us-east-1")
+    browser = body.get("browser", "default")
+    incognito = body.get("incognito", False)
+    
+    success, result = await start_device_flow(region)
+    
+    if success:
+        # 用指定浏览器打开授权页面
+        open_url(result["verification_uri"], browser, incognito)
+        
+        return {
+            "ok": True,
+            "user_code": result["user_code"],
+            "verification_uri": result["verification_uri"],
+            "expires_in": result["expires_in"],
+            "interval": result["interval"],
+        }
+    else:
+        return {"ok": False, "error": result.get("error", "未知错误")}
+
+
+async def poll_kiro_login():
+    """轮询 Kiro 登录状态"""
+    success, result = await poll_device_flow()
+    
+    if not success:
+        return {"ok": False, "error": result.get("error", "未知错误")}
+    
+    if result.get("completed"):
+        # 授权完成，保存凭证并添加账号
+        credentials = result["credentials"]
+        
+        # 保存到文件
+        from ..auth.device_flow import save_credentials_to_file
+        file_path = await save_credentials_to_file(credentials)
+        
+        # 添加账号
+        account = Account(
+            id=uuid.uuid4().hex[:8],
+            name="在线登录账号",
+            token_path=file_path
+        )
+        state.accounts.append(account)
+        account.load_credentials()
+        state._save_accounts()
+        
+        return {
+            "ok": True,
+            "completed": True,
+            "account_id": account.id,
+            "message": "登录成功，账号已添加"
+        }
+    else:
+        return {
+            "ok": True,
+            "completed": False,
+            "status": result.get("status", "pending")
+        }
+
+
+async def cancel_kiro_login():
+    """取消 Kiro 登录"""
+    cancelled = cancel_device_flow()
+    return {"ok": cancelled}
+
+
+async def get_kiro_login_status():
+    """获取当前登录状态"""
+    login_state = get_login_state()
+    if login_state:
+        return {
+            "ok": True,
+            "in_progress": True,
+            **login_state
+        }
+    else:
+        return {"ok": True, "in_progress": False}
+
+
+# ==================== Social Auth API (Google/GitHub) ====================
+
+async def start_social_login(request: Request):
+    """启动 Social Auth 登录 (Google/GitHub)"""
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    provider = body.get("provider", "google")
+    browser = body.get("browser", "default")
+    incognito = body.get("incognito", False)
+    
+    success, result = await start_social_auth(provider)
+    
+    if success:
+        # 用指定浏览器打开登录页面
+        open_url(result["login_url"], browser, incognito)
+        
+        return {
+            "ok": True,
+            "provider": result["provider"],
+            "login_url": result["login_url"],
+            "state": result["state"],
+        }
+    else:
+        return {"ok": False, "error": result.get("error", "未知错误")}
+
+
+async def exchange_social_token(request: Request):
+    """交换 Social Auth Token"""
+    body = await request.json()
+    code = body.get("code")
+    oauth_state = body.get("state")
+    
+    if not code or not oauth_state:
+        return {"ok": False, "error": "缺少 code 或 state"}
+    
+    success, result = await exchange_social_auth_token(code, oauth_state)
+    
+    if not success:
+        return {"ok": False, "error": result.get("error", "未知错误")}
+    
+    if result.get("completed"):
+        # 保存凭证并添加账号
+        credentials = result["credentials"]
+        provider = result.get("provider", "Social")
+        
+        # 保存到文件
+        from ..auth.device_flow import save_credentials_to_file
+        file_path = await save_credentials_to_file(credentials, f"kiro-{provider.lower()}-auth")
+        
+        # 添加账号
+        account = Account(
+            id=uuid.uuid4().hex[:8],
+            name=f"{provider} 登录账号",
+            token_path=file_path
+        )
+        state.accounts.append(account)
+        account.load_credentials()
+        state._save_accounts()
+        
+        return {
+            "ok": True,
+            "completed": True,
+            "account_id": account.id,
+            "provider": provider,
+            "message": f"{provider} 登录成功，账号已添加"
+        }
+    
+    return {"ok": False, "error": "Token 交换失败"}
+
+
+async def cancel_social_login():
+    """取消 Social Auth 登录"""
+    cancelled = cancel_social_auth()
+    return {"ok": cancelled}
+
+
+async def get_social_login_status():
+    """获取 Social Auth 状态"""
+    auth_state = get_social_auth_state()
+    if auth_state:
+        return {
+            "ok": True,
+            "in_progress": True,
+            **auth_state
+        }
+    else:
+        return {"ok": True, "in_progress": False}
+
+
+# ==================== Flow Monitor API ====================
+
+async def get_flows(
+    protocol: str = None,
+    model: str = None,
+    account_id: str = None,
+    state_filter: str = None,
+    has_error: bool = None,
+    bookmarked: bool = None,
+    search: str = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """查询 Flows"""
+    from ..core.flow_monitor import FlowState
+    
+    state_enum = None
+    if state_filter:
+        try:
+            state_enum = FlowState(state_filter)
+        except ValueError:
+            pass
+    
+    flows = flow_monitor.query(
+        protocol=protocol,
+        model=model,
+        account_id=account_id,
+        state=state_enum,
+        has_error=has_error,
+        bookmarked=bookmarked,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+    
+    return {
+        "flows": [f.to_dict() for f in flows],
+        "total": len(flows),
+    }
+
+
+async def get_flow_detail(flow_id: str):
+    """获取 Flow 详情"""
+    flow = flow_monitor.get_flow(flow_id)
+    if not flow:
+        raise HTTPException(404, "Flow not found")
+    return flow.to_full_dict()
+
+
+async def get_flow_stats():
+    """获取 Flow 统计"""
+    return flow_monitor.get_stats()
+
+
+async def bookmark_flow(flow_id: str, request: Request):
+    """书签 Flow"""
+    body = await request.json()
+    bookmarked = body.get("bookmarked", True)
+    flow_monitor.bookmark_flow(flow_id, bookmarked)
+    return {"ok": True}
+
+
+async def add_flow_note(flow_id: str, request: Request):
+    """添加 Flow 备注"""
+    body = await request.json()
+    note = body.get("note", "")
+    flow_monitor.add_note(flow_id, note)
+    return {"ok": True}
+
+
+async def add_flow_tag(flow_id: str, request: Request):
+    """添加 Flow 标签"""
+    body = await request.json()
+    tag = body.get("tag", "")
+    if tag:
+        flow_monitor.add_tag(flow_id, tag)
+    return {"ok": True}
+
+
+async def export_flows(request: Request):
+    """导出 Flows"""
+    body = await request.json()
+    flow_ids = body.get("flow_ids", [])
+    format = body.get("format", "json")
+    
+    content = flow_monitor.export(flow_ids if flow_ids else None, format)
+    return {"content": content, "format": format}
+
+
+# ==================== Usage API ====================
+
+async def get_account_usage_info(account_id: str):
+    """获取账号用量信息"""
+    for acc in state.accounts:
+        if acc.id == account_id:
+            success, result = await get_account_usage(acc)
+            if success:
+                return {
+                    "ok": True,
+                    "account_id": account_id,
+                    "account_name": acc.name,
+                    "usage": {
+                        "subscription_title": result.subscription_title,
+                        "usage_limit": result.usage_limit,
+                        "current_usage": result.current_usage,
+                        "balance": result.balance,
+                        "is_low_balance": result.is_low_balance,
+                        "free_trial_limit": result.free_trial_limit,
+                        "free_trial_usage": result.free_trial_usage,
+                        "bonus_limit": result.bonus_limit,
+                        "bonus_usage": result.bonus_usage,
+                    }
+                }
+            else:
+                return {"ok": False, "error": result.get("error", "查询失败")}
+    raise HTTPException(404, "Account not found")

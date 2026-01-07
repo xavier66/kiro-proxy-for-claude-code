@@ -33,7 +33,13 @@
 - **会话粘性** - 同一会话 60 秒内使用同一账号，保持上下文
 - **Web UI** - 简洁的管理界面，支持对话测试、监控、日志查看
 
-### v1.4.0 新功能
+### v1.5.0 新功能
+- **用量查询** - 查询账号配额使用情况，显示已用/余额/使用率
+- **多登录方式** - 支持 Google / GitHub / AWS Builder ID 三种登录方式
+- **流量监控** - 完整的 LLM 请求监控，支持搜索、过滤、导出
+- **浏览器选择** - 自动检测已安装浏览器，支持无痕模式
+
+### v1.4.0 功能
 - **Token 预刷新** - 后台每 5 分钟检查，提前 15 分钟自动刷新
 - **健康检查** - 每 10 分钟检测账号可用性，自动标记状态
 - **请求统计增强** - 按账号/模型统计，24 小时趋势
@@ -45,7 +51,6 @@
 - **配额管理** - 429 自动检测、冷却 (300s)、自动恢复
 - **自动账号切换** - 配额超限时自动切换到下一个可用账号
 - **配置持久化** - 账号配置保存到 `~/.kiro-proxy/config.json`，重启不丢失
-- **凭证状态管理** - Active / Cooldown / Unhealthy / Disabled 四种状态
 
 ## 已知限制
 
@@ -96,10 +101,16 @@ python run.py 8081
 
 ### 登录获取 Token
 
-1. 打开 Kiro IDE
-2. 点击登录，使用 Google/GitHub 账号
-3. 登录成功后 token 自动保存到 `~/.aws/sso/cache/`
-4. 在 Web UI 点击「扫描 Token」添加账号
+**方式一：在线登录（推荐）**
+1. 打开 Web UI，点击「在线登录」
+2. 选择登录方式：Google / GitHub / AWS Builder ID
+3. 在浏览器中完成授权
+4. 账号自动添加
+
+**方式二：扫描 Token**
+1. 打开 Kiro IDE，使用 Google/GitHub 账号登录
+2. 登录成功后 token 自动保存到 `~/.aws/sso/cache/`
+3. 在 Web UI 点击「扫描 Token」添加账号
 
 ## CLI 配置
 
@@ -146,14 +157,17 @@ Endpoint: http://localhost:8080/v1
 |------|------|------|
 | `/api/accounts` | GET | 获取所有账号状态 |
 | `/api/accounts/{id}` | GET | 获取账号详情 |
+| `/api/accounts/{id}/usage` | GET | 获取账号用量信息 |
 | `/api/accounts/{id}/refresh` | POST | 刷新账号 Token |
 | `/api/accounts/{id}/restore` | POST | 恢复账号（从冷却状态） |
 | `/api/accounts/refresh-all` | POST | 刷新所有即将过期的 Token |
+| `/api/flows` | GET | 获取流量记录 |
+| `/api/flows/stats` | GET | 获取流量统计 |
+| `/api/flows/{id}` | GET | 获取流量详情 |
 | `/api/quota` | GET | 获取配额状态 |
 | `/api/stats` | GET | 获取统计信息 |
-| `/api/stats/detailed` | GET | 获取详细统计（按账号/模型） |
 | `/api/health-check` | POST | 手动触发健康检查 |
-| `/api/logs` | GET | 获取请求日志 |
+| `/api/browsers` | GET | 获取可用浏览器列表 |
 
 ## 项目结构
 
@@ -169,7 +183,10 @@ kiro_proxy/
 │   ├── persistence.py        # 配置持久化
 │   ├── scheduler.py          # 后台任务调度
 │   ├── stats.py              # 请求统计
-│   └── retry.py              # 重试机制
+│   ├── retry.py              # 重试机制
+│   ├── browser.py            # 浏览器检测
+│   ├── flow_monitor.py       # 流量监控
+│   └── usage.py              # 用量查询
 │
 ├── credential/                # 凭证管理
 │   ├── types.py              # KiroCredentials
@@ -177,9 +194,8 @@ kiro_proxy/
 │   ├── quota.py              # 配额管理器
 │   └── refresher.py          # Token 刷新
 │
-├── providers/                 # Provider 抽象
-│   ├── base.py               # BaseProvider 基类
-│   └── kiro.py               # Kiro Provider
+├── auth/                      # 认证模块
+│   └── device_flow.py        # Device Code Flow / Social Auth
 │
 ├── handlers/                  # API 处理器
 │   ├── anthropic.py          # /v1/messages
