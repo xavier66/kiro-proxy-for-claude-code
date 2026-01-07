@@ -29,16 +29,16 @@ def _convert_responses_input_to_kiro(input_data, instructions: str = None):
     - function_call_output: 工具调用结果
     
     Kiro API 期望的格式:
-    - userInputMessage: 用户消息，可包含 toolResults
-    - assistantResponseMessage: 助手回复，可包含 toolUses
-    
-    关键：工具调用结果必须放在下一条 userInputMessage 的 toolResults 里
+    - history: [userInputMessage, assistantResponseMessage, ...] 交替
+    - 当 assistant 有 toolUses 时，下一条 userInputMessage 必须包含对应的 toolResults
+    - 当前请求的 userInputMessage 只包含最新一轮的 toolResults
     """
     history = []
     user_content = ""
     tool_results = []
     model_id = "claude-sonnet-4"
-    first_user_msg_added = False  # 跟踪是否已添加第一条 user 消息
+    first_user_msg_added = False
+    pending_images = []
     
     if isinstance(input_data, str):
         if instructions:
@@ -48,19 +48,21 @@ def _convert_responses_input_to_kiro(input_data, instructions: str = None):
     if not isinstance(input_data, list):
         return user_content, history, tool_results, None
     
-    # 收集消息
-    pending_user_contents = []
-    pending_tool_results = []
-    pending_images = []  # 收集图片
+    # 线性处理消息，跟踪状态
+    pending_user_texts = []
+    pending_tool_uses = []
+    pending_tool_outputs = []
+    last_was_assistant_with_tools = False
     
-    for item in input_data:
+    for i, item in enumerate(input_data):
         item_type = item.get("type", "")
+        is_last = (i == len(input_data) - 1)
         
         if item_type == "message":
             role = item.get("role", "user")
             content_list = item.get("content", [])
             
-            # 提取文本内容和图片
+            # 提取文本和图片
             text_parts = []
             images = []
             for c in content_list:
@@ -71,48 +73,27 @@ def _convert_responses_input_to_kiro(input_data, instructions: str = None):
                     if c_type in ("input_text", "output_text", "text"):
                         text_parts.append(c.get("text", ""))
                     elif c_type == "input_image":
-                        # 处理图片：data:image/png;base64,xxx 格式
                         image_url = c.get("image_url", "")
                         if image_url.startswith("data:"):
-                            # 解析 data URL
                             import re
                             match = re.match(r'data:image/(\w+);base64,(.+)', image_url)
                             if match:
-                                fmt = match.group(1)
-                                data = match.group(2)
                                 images.append({
-                                    "format": fmt,
-                                    "source": {"bytes": data}
+                                    "format": match.group(1),
+                                    "source": {"bytes": match.group(2)}
                                 })
             
             text = "\n".join(text_parts) if text_parts else ""
             
             if role == "user":
-                # 收集图片
                 if images:
                     pending_images.extend(images)
-                
-                # 如果有待处理的工具结果，先创建一个包含 toolResults 的 userInputMessage
-                if pending_tool_results:
-                    tool_result_msg = {
-                        "userInputMessage": {
-                            "content": "Tool results provided.",
-                            "modelId": model_id,
-                            "origin": "AI_EDITOR",
-                            "userInputMessageContext": {
-                                "toolResults": pending_tool_results
-                            }
-                        }
-                    }
-                    history.append(tool_result_msg)
-                    pending_tool_results = []
-                
-                pending_user_contents.append(text)
+                pending_user_texts.append(text)
+            
             elif role == "assistant":
-                # 遇到 assistant 消息，先把之前的 user 消息合并
-                if pending_user_contents:
-                    combined_user = "\n\n".join(pending_user_contents)
-                    # 第一条 user 消息需要合并 instructions
+                # 遇到 assistant 消息，先处理之前的 user 消息
+                if pending_user_texts:
+                    combined_user = "\n\n".join(pending_user_texts)
                     if not first_user_msg_added and instructions:
                         combined_user = f"{instructions}\n\n{combined_user}"
                         first_user_msg_added = True
@@ -124,23 +105,47 @@ def _convert_responses_input_to_kiro(input_data, instructions: str = None):
                             "origin": "AI_EDITOR"
                         }
                     }
-                    if pending_tool_results:
+                    # 如果上一个 assistant 有工具调用，这个 user 消息需要带 toolResults
+                    if pending_tool_outputs:
                         user_msg["userInputMessage"]["userInputMessageContext"] = {
-                            "toolResults": pending_tool_results
+                            "toolResults": pending_tool_outputs
                         }
-                        pending_tool_results = []
+                        pending_tool_outputs = []
+                    
                     history.append(user_msg)
-                    pending_user_contents = []
+                    pending_user_texts = []
+                elif pending_tool_outputs:
+                    # 没有 user 消息，但有工具结果，创建一个带 toolResults 的 user 消息
+                    user_msg = {
+                        "userInputMessage": {
+                            "content": "Tool execution completed.",
+                            "modelId": model_id,
+                            "origin": "AI_EDITOR",
+                            "userInputMessageContext": {
+                                "toolResults": pending_tool_outputs
+                            }
+                        }
+                    }
+                    history.append(user_msg)
+                    pending_tool_outputs = []
                 
-                history.append({
+                # 添加 assistant 消息
+                assistant_msg = {
                     "assistantResponseMessage": {
-                        "content": text,
+                        "content": text or "I understand.",
                         "modelId": model_id
                     }
-                })
+                }
+                if pending_tool_uses:
+                    assistant_msg["assistantResponseMessage"]["toolUses"] = pending_tool_uses
+                    pending_tool_uses = []
+                    last_was_assistant_with_tools = True
+                else:
+                    last_was_assistant_with_tools = False
+                
+                history.append(assistant_msg)
         
         elif item_type == "function_call":
-            # 工具调用是 assistant 的一部分
             try:
                 args = json.loads(item.get("arguments", "{}")) if isinstance(item.get("arguments"), str) else item.get("arguments", {})
             except:
@@ -157,87 +162,52 @@ def _convert_responses_input_to_kiro(input_data, instructions: str = None):
                 if "toolUses" not in history[-1]["assistantResponseMessage"]:
                     history[-1]["assistantResponseMessage"]["toolUses"] = []
                 history[-1]["assistantResponseMessage"]["toolUses"].append(tool_use)
+                last_was_assistant_with_tools = True
             else:
-                # 否则创建新的 assistant 消息
-                history.append({
-                    "assistantResponseMessage": {
-                        "content": "",
-                        "modelId": model_id,
-                        "toolUses": [tool_use]
-                    }
-                })
+                pending_tool_uses.append(tool_use)
         
         elif item_type == "function_call_output":
             call_id = item.get("call_id", "")
             output = item.get("output", {})
             
-            # 处理 output 格式：
-            # - 成功时：output 是纯字符串
-            # - 失败时：output 是 { content: "...", success: false }
             if isinstance(output, str):
                 output_str = output
                 status = "success"
             elif isinstance(output, dict):
                 output_str = output.get("content", json.dumps(output))
-                # 检查 success 字段
-                success = output.get("success", True)
-                status = "success" if success is not False else "error"
+                status = "success" if output.get("success", True) is not False else "error"
             else:
                 output_str = str(output)
                 status = "success"
             
-            pending_tool_results.append({
+            pending_tool_outputs.append({
                 "content": [{"text": output_str}],
                 "status": status,
                 "toolUseId": call_id
             })
     
-    # 处理剩余的 user 消息
-    if pending_user_contents:
-        if len(pending_user_contents) > 1:
-            # 把前面的合并到 history
-            combined_prev = "\n\n".join(pending_user_contents[:-1])
-            # 第一条 user 消息需要合并 instructions
-            if not first_user_msg_added and instructions:
-                combined_prev = f"{instructions}\n\n{combined_prev}"
-                first_user_msg_added = True
-            
-            user_msg = {
-                "userInputMessage": {
-                    "content": combined_prev,
-                    "modelId": model_id,
-                    "origin": "AI_EDITOR"
-                }
-            }
-            if pending_tool_results:
-                user_msg["userInputMessage"]["userInputMessageContext"] = {
-                    "toolResults": pending_tool_results
-                }
-                pending_tool_results = []
-            history.append(user_msg)
-            # 需要一个 assistant 响应来保持交替
-            history.append({
-                "assistantResponseMessage": {
-                    "content": "I understand. Please continue.",
-                    "modelId": model_id
-                }
-            })
-        user_content = pending_user_contents[-1]
-        # 如果这是第一条 user 消息，合并 instructions
+    # 处理剩余的消息
+    if pending_user_texts:
+        user_content = "\n\n".join(pending_user_texts)
         if not first_user_msg_added and instructions:
             user_content = f"{instructions}\n\n{user_content}"
-            first_user_msg_added = True
-    elif pending_tool_results:
-        # 没有新的用户消息，但有工具结果
+    elif pending_tool_outputs:
         user_content = "Please continue based on the tool results."
     
-    # 如果有待处理的工具结果，作为 tool_results 返回
-    if pending_tool_results:
-        tool_results = pending_tool_results
+    if pending_tool_outputs:
+        tool_results = pending_tool_outputs
     
-    # 返回图片列表
+    # 调试日志
+    print(f"[Responses] Converted: history={len(history)}, tool_results={len(tool_results)}")
+    for i, h in enumerate(history):
+        if "userInputMessage" in h:
+            has_tr = "toolResults" in h.get("userInputMessage", {}).get("userInputMessageContext", {})
+            print(f"[Responses]   history[{i}]: userInputMessage, has_toolResults={has_tr}")
+        elif "assistantResponseMessage" in h:
+            has_tu = bool(h.get("assistantResponseMessage", {}).get("toolUses"))
+            print(f"[Responses]   history[{i}]: assistantResponseMessage, has_toolUses={has_tu}")
+    
     images = pending_images if pending_images else None
-    
     return user_content, history, tool_results, images
 
 
