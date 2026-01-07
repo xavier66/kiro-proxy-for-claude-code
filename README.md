@@ -27,9 +27,21 @@
 ### 核心功能
 - **多协议支持** - OpenAI / Anthropic / Gemini 三种协议兼容
 - **完整工具调用** - 三种协议的工具调用功能全面支持
+- **图片理解** - 支持 Claude Code / Codex CLI 图片输入
+- **网络搜索** - 支持 Claude Code / Codex CLI 网络搜索工具
 - **多账号轮询** - 支持添加多个 Kiro 账号，自动负载均衡
 - **会话粘性** - 同一会话 60 秒内使用同一账号，保持上下文
 - **Web UI** - 简洁的管理界面，支持监控、日志、设置
+
+### v1.6.2 新功能
+- **Codex CLI 完整支持** - 使用 OpenAI Responses API (`/v1/responses`)
+  - 完整工具调用支持（shell、file 等所有工具）
+  - 图片输入支持（`input_image` 类型）
+  - 网络搜索支持（`web_search` 工具）
+  - 错误代码映射（rate_limit、context_length 等）
+- **Claude Code 增强** - 图片理解和网络搜索完整支持
+  - 支持 Anthropic 和 OpenAI 两种图片格式
+  - 支持 `web_search` / `web_search_20250305` 工具
 
 ### v1.6.1 新功能
 - **请求限速** - 通过限制请求频率降低账号封禁风险
@@ -75,6 +87,8 @@
 | 强制工具调用 | ✅ `tool_choice` | ✅ `tool_choice` | ✅ `toolConfig.mode` |
 | 工具数量限制 | ✅ 50 个 | ✅ 50 个 | ✅ 50 个 |
 | 历史消息修复 | ✅ | ✅ | ✅ |
+| 图片理解 | ✅ | ✅ | ❌ |
+| 网络搜索 | ✅ | ✅ | ❌ |
 
 ## 已知限制
 
@@ -164,18 +178,31 @@ Base URL: http://localhost:8080
 
 ### Codex 配置
 
+Codex CLI 使用 OpenAI Responses API，配置如下：
+
+```bash
+# 设置环境变量
+export OPENAI_API_KEY=any
+export OPENAI_BASE_URL=http://localhost:8080/v1
+
+# 运行 Codex
+codex
 ```
-名称: Kiro Proxy
-API Key: any
-Endpoint: http://localhost:8080/v1
-模型: gpt-4o
+
+或在 `~/.codex/config.toml` 中配置：
+
+```toml
+[providers.openai]
+api_key = "any"
+base_url = "http://localhost:8080/v1"
 ```
 
 ## API 端点
 
 | 协议 | 端点 | 用途 |
 |------|------|------|
-| OpenAI | `POST /v1/chat/completions` | Codex CLI |
+| OpenAI | `POST /v1/chat/completions` | Chat Completions API |
+| OpenAI | `POST /v1/responses` | Responses API (Codex CLI) |
 | OpenAI | `GET /v1/models` | 模型列表 |
 | Anthropic | `POST /v1/messages` | Claude Code |
 | Anthropic | `POST /v1/messages/count_tokens` | Token 计数 |
