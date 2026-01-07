@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import MODELS_URL
 from .core import state, scheduler, stats_manager
 from .handlers import anthropic, openai, gemini, admin
+from .handlers import responses as responses_handler
 from .web.html import HTML_PAGE
 from .credential import generate_machine_id, get_kiro_version
 
@@ -117,6 +118,12 @@ async def anthropic_count_tokens(request: Request):
 @app.post("/v1/chat/completions")
 async def openai_chat(request: Request):
     return await openai.handle_chat_completions(request)
+
+
+# OpenAI Responses API (Codex CLI 新版本)
+@app.post("/v1/responses")
+async def openai_responses(request: Request):
+    return await responses_handler.handle_responses(request)
 
 
 # Gemini 协议
