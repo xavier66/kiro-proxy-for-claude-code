@@ -478,6 +478,7 @@ DOC_TITLES = {
     "02-features": "功能特性",
     "03-faq": "常见问题",
     "04-api": "API 参考",
+    "05-server-deploy": "服务器部署",
 }
 
 @app.get("/api/docs")

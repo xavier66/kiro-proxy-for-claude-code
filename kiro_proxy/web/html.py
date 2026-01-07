@@ -332,6 +332,23 @@ API Key: any
 API Key: any
 模型: gpt-4o</code></pre>
   </div>
+  <div class="card">
+    <h3>模型映射</h3>
+    <p style="color:var(--muted);font-size:0.875rem;margin-bottom:1rem">支持多种模型名称，自动映射到 Kiro 模型</p>
+    <table>
+      <thead><tr><th>Kiro 模型</th><th>能力</th><th>可用名称</th></tr></thead>
+      <tbody>
+        <tr><td><code>claude-sonnet-4</code></td><td>⭐⭐⭐ 推荐</td><td>gpt-4o, gpt-4, claude-3-5-sonnet-*, sonnet</td></tr>
+        <tr><td><code>claude-sonnet-4.5</code></td><td>⭐⭐⭐⭐ 更强</td><td>gemini-1.5-pro</td></tr>
+        <tr><td><code>claude-haiku-4.5</code></td><td>⚡ 快速</td><td>gpt-4o-mini, gpt-3.5-turbo, haiku</td></tr>
+        <tr><td><code>claude-opus-4.5</code></td><td>⭐⭐⭐⭐⭐ 最强</td><td>o1, o1-preview, opus</td></tr>
+        <tr><td><code>auto</code></td><td>🤖 自动</td><td>auto</td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--muted);font-size:0.75rem;margin-top:0.75rem">
+      💡 直接使用 Kiro 模型名（如 claude-sonnet-4）或任意映射名称均可
+    </p>
+  </div>
 </div>
 '''
 
