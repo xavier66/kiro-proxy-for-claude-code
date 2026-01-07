@@ -63,12 +63,31 @@ th { font-weight: 500; color: var(--muted); }
 '''
 
 CSS_CHAT = '''
-.chat-box { height: 350px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; background: var(--bg); }
+.chat-box { height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; background: var(--bg); }
 .msg { margin-bottom: 1rem; }
 .msg.user { text-align: right; }
-.msg span { display: inline-block; max-width: 80%; padding: 0.75rem 1rem; border-radius: 12px; white-space: pre-wrap; word-break: break-word; }
-.msg.user span { background: var(--accent); color: var(--bg); }
-.msg.ai span { background: var(--card); border: 1px solid var(--border); }
+.msg.user .msg-content { display: inline-block; max-width: 80%; padding: 0.75rem 1rem; border-radius: 12px; background: var(--accent); color: var(--bg); white-space: pre-wrap; word-break: break-word; }
+.msg.ai .msg-content { display: block; max-width: 100%; padding: 0.75rem 1rem; border-radius: 12px; background: var(--card); border: 1px solid var(--border); }
+.msg.ai .msg-content p { margin: 0.5em 0; }
+.msg.ai .msg-content p:first-child { margin-top: 0; }
+.msg.ai .msg-content p:last-child { margin-bottom: 0; }
+.msg.ai .msg-content code { background: var(--bg); padding: 0.2em 0.4em; border-radius: 3px; font-size: 0.9em; }
+.msg.ai .msg-content pre { margin: 0.5em 0; padding: 0.75rem; overflow-x: auto; }
+.msg.ai .msg-content pre code { background: none; padding: 0; }
+.msg.ai .msg-content ul, .msg.ai .msg-content ol { margin: 0.5em 0; padding-left: 1.5em; }
+.msg.ai .msg-content h1, .msg.ai .msg-content h2, .msg.ai .msg-content h3 { margin: 0.75em 0 0.5em; font-size: 1.1em; }
+.msg.ai .msg-content table { margin: 0.5em 0; }
+.msg.ai .msg-content blockquote { margin: 0.5em 0; padding-left: 1em; border-left: 3px solid var(--border); color: var(--muted); }
+.thinking-box { margin-bottom: 0.5rem; }
+.thinking-toggle { cursor: pointer; color: var(--muted); font-size: 0.8rem; display: flex; align-items: center; gap: 0.25rem; }
+.thinking-toggle:hover { color: var(--text); }
+.thinking-content { display: none; margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px; font-size: 0.85rem; color: var(--muted); white-space: pre-wrap; }
+.thinking-content.show { display: block; }
+.typing-indicator { display: inline-block; }
+.typing-indicator span { display: inline-block; width: 6px; height: 6px; background: var(--muted); border-radius: 50%; margin: 0 2px; animation: typing 1s infinite; }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 '''
 
 CSS_ACCOUNTS = '''
@@ -1069,40 +1088,72 @@ function escapeHtml(text){
 '''
 
 JS_HELP = '''
-// AI 助手 (内置 GLM API)
-const HELP_SYSTEM_PROMPT = `你是 Kiro API Proxy 的 AI 助手。Kiro Proxy 是一个 Kiro IDE API 反向代理服务器。
-
-主要功能：
-- 多协议支持：OpenAI / Anthropic / Gemini 三种协议
-- 多账号轮询：支持添加多个 Kiro 账号，自动负载均衡
-- Token 自动刷新：检测过期自动刷新
-- 配额管理：429 自动冷却和恢复
-- 流量监控：完整的 LLM 请求监控
-
-配置方法：
-1. Claude Code 配置：Base URL: http://localhost:8080, API Key: any, 模型: claude-sonnet-4
-2. Codex CLI 配置：Endpoint: http://localhost:8080/v1, API Key: any, 模型: gpt-4o
-
-获取 Token：
-- 方式一：在线登录 - 点击"在线登录"，选择 Google/GitHub/AWS 登录
-- 方式二：扫描 Token - 打开 Kiro IDE 登录后，点击"扫描 Token"
-
-常见问题：
-- 429 错误：Kiro 有请求频率限制，代理会自动冷却该账号并切换到其他账号
-- 对话太长：在 Claude Code 中输入 /clear 清空对话
-- Token 过期：代理会自动刷新，也可手动点击"刷新 Token"
-
-请用简洁友好的中文回答用户问题。`;
-
+// AI 助手 (流式输出 + Markdown 渲染)
 let helpMessages = [];
 
-function addHelpMsg(role, text) {
+// 简单的 Markdown 渲染
+function renderMarkdown(text) {
+  return text
+    // 代码块
+    .replace(/```(\\w*)\\n([\\s\\S]*?)```/g, '<pre><code class="lang-$1">$2</code></pre>')
+    // 行内代码
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // 标题
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    // 粗体和斜体
+    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
+    .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
+    // 链接
+    .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>')
+    // 列表
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/^\\d+\\. (.+)$/gm, '<li>$1</li>')
+    // 引用
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    // 段落
+    .replace(/\\n\\n/g, '</p><p>')
+    .replace(/\\n/g, '<br>');
+}
+
+function addHelpMsg(role, text, thinking = '') {
   const box = $('#helpChatBox');
   const div = document.createElement('div');
   div.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
-  div.innerHTML = '<span>' + text.replace(/</g, '&lt;').replace(/\\n/g, '<br>') + '</span>';
+  
+  if (role === 'user') {
+    div.innerHTML = '<div class="msg-content">' + text.replace(/</g, '&lt;') + '</div>';
+  } else {
+    let html = '';
+    if (thinking) {
+      const thinkingId = 'think-' + Date.now();
+      html += '<div class="thinking-box">';
+      html += '<div class="thinking-toggle" onclick="toggleThinking(\\'' + thinkingId + '\\')">';
+      html += '<span>💭</span> 思考过程 <span id="' + thinkingId + '-arrow">▶</span>';
+      html += '</div>';
+      html += '<div class="thinking-content" id="' + thinkingId + '">' + thinking.replace(/</g, '&lt;') + '</div>';
+      html += '</div>';
+    }
+    html += '<div class="msg-content">' + renderMarkdown(text) + '</div>';
+    div.innerHTML = html;
+  }
+  
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+function toggleThinking(id) {
+  const content = document.getElementById(id);
+  const arrow = document.getElementById(id + '-arrow');
+  if (content.classList.contains('show')) {
+    content.classList.remove('show');
+    arrow.textContent = '▶';
+  } else {
+    content.classList.add('show');
+    arrow.textContent = '▼';
+  }
 }
 
 function clearHelp() {
@@ -1121,31 +1172,63 @@ async function sendHelp() {
   $('#helpSendBtn').disabled = true;
   $('#helpSendBtn').textContent = '...';
   
+  // 添加 AI 消息占位
+  const box = $('#helpChatBox');
+  const aiDiv = document.createElement('div');
+  aiDiv.className = 'msg ai';
+  aiDiv.innerHTML = '<div class="msg-content"><div class="typing-indicator"><span></span><span></span><span></span></div></div>';
+  box.appendChild(aiDiv);
+  box.scrollTop = box.scrollHeight;
+  
+  let fullContent = '';
+  let thinking = '';
+  
   try {
-    const allMessages = [
-      { role: 'system', content: HELP_SYSTEM_PROMPT },
-      ...helpMessages
-    ];
-    
-    // 调用内置 GLM API
-    const res = await fetch('/api/glm/chat', {
+    // 流式请求
+    const res = await fetch('/api/glm/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'glm-4.7', messages: allMessages })
+      body: JSON.stringify({ model: 'glm-4.7', messages: helpMessages })
     });
     
-    const data = await res.json();
-    if (data.choices && data.choices[0]) {
-      const reply = data.choices[0].message.content;
-      addHelpMsg('ai', reply);
-      helpMessages.push({ role: 'assistant', content: reply });
-    } else if (data.error) {
-      addHelpMsg('ai', '错误: ' + (data.error.message || JSON.stringify(data.error)));
-    } else {
-      addHelpMsg('ai', '无法获取回复');
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\\n');
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === 'content') {
+              fullContent += data.text;
+              // 更新显示
+              aiDiv.innerHTML = '<div class="msg-content">' + renderMarkdown(fullContent) + '</div>';
+              box.scrollTop = box.scrollHeight;
+            } else if (data.type === 'thinking') {
+              thinking += data.text;
+            } else if (data.type === 'error') {
+              fullContent = '错误: ' + data.text;
+            }
+          } catch (e) {}
+        }
+      }
     }
+    
+    // 最终渲染（包含思考过程）
+    if (fullContent) {
+      aiDiv.remove();
+      addHelpMsg('ai', fullContent, thinking);
+      helpMessages.push({ role: 'assistant', content: fullContent });
+    }
+    
   } catch (e) {
-    addHelpMsg('ai', '请求失败: ' + e.message);
+    aiDiv.innerHTML = '<div class="msg-content">请求失败: ' + e.message + '</div>';
   }
   
   $('#helpSendBtn').disabled = false;

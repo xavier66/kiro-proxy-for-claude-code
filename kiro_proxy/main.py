@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import MODELS_URL
 from .core import state, scheduler, stats_manager
-from .core.glm_api import glm_chat_completions
+from .core.glm_api import glm_chat_completions, chat_with_glm_stream
 from .handlers import anthropic, openai, gemini, admin
 from .web.html import HTML_PAGE
 from .credential import generate_machine_id, get_kiro_version
@@ -380,21 +380,30 @@ async def api_glm_chat(request: Request):
     messages = body.get("messages", [])
     model = body.get("model", "glm-4.7")
     
-    # 读取 README 作为知识库
-    readme_content = ""
+    # 读取 docs 目录下所有文档作为知识库
+    docs_content = ""
     try:
-        readme_path = Path(__file__).parent.parent / "README.md"
-        if not readme_path.exists():
-            readme_path = Path("README.md")
-        if readme_path.exists():
-            readme_content = readme_path.read_text(encoding="utf-8")
+        docs_dir = Path(__file__).parent / "docs"
+        if docs_dir.exists():
+            for doc_file in docs_dir.glob("*.md"):
+                docs_content += f"\n\n## {doc_file.stem}\n"
+                docs_content += doc_file.read_text(encoding="utf-8")
     except:
         pass
+    
+    # 如果 docs 为空，回退到 README
+    if not docs_content:
+        try:
+            readme_path = Path(__file__).parent.parent / "README.md"
+            if readme_path.exists():
+                docs_content = readme_path.read_text(encoding="utf-8")
+        except:
+            pass
     
     # 构建 System Prompt
     system_prompt = f"""你是 Kiro Proxy 的使用助手。请根据以下文档回答用户问题，回答要简洁实用。
 
-{readme_content}
+{docs_content}
 
 请直接回答用户问题，不要自我介绍。如果问题与 Kiro Proxy 无关，礼貌地引导用户询问相关问题。"""
     
@@ -405,6 +414,50 @@ async def api_glm_chat(request: Request):
             final_messages.append(m)
     
     return await glm_chat_completions(final_messages, model)
+
+
+@app.post("/api/glm/chat/stream")
+async def api_glm_chat_stream(request: Request):
+    """GLM 流式聊天接口"""
+    body = await request.json()
+    messages = body.get("messages", [])
+    model = body.get("model", "glm-4.7")
+    
+    # 读取 docs 目录
+    docs_content = ""
+    try:
+        docs_dir = Path(__file__).parent / "docs"
+        if docs_dir.exists():
+            for doc_file in docs_dir.glob("*.md"):
+                docs_content += f"\n\n## {doc_file.stem}\n"
+                docs_content += doc_file.read_text(encoding="utf-8")
+    except:
+        pass
+    
+    if not docs_content:
+        try:
+            readme_path = Path(__file__).parent.parent / "README.md"
+            if readme_path.exists():
+                docs_content = readme_path.read_text(encoding="utf-8")
+        except:
+            pass
+    
+    system_prompt = f"""你是 Kiro Proxy 的使用助手。请根据以下文档回答用户问题，回答要简洁实用。
+
+{docs_content}
+
+请直接回答用户问题，不要自我介绍。如果问题与 Kiro Proxy 无关，礼貌地引导用户询问相关问题。"""
+    
+    final_messages = [{"role": "system", "content": system_prompt}]
+    for m in messages:
+        if m.get("role") != "system":
+            final_messages.append(m)
+    
+    async def generate():
+        async for chunk in chat_with_glm_stream(final_messages, model):
+            yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+    
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 # ==================== 启动 ====================

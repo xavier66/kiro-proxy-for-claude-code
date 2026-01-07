@@ -220,6 +220,114 @@ async def chat_with_glm(
         return full_content
 
 
+async def chat_with_glm_stream(messages: list, model: str = 'glm-4.7'):
+    """
+    流式调用智谱 GLM API
+    
+    Yields:
+        dict: {"type": "thinking" | "content" | "done", "text": "..."}
+    """
+    token_info = await get_cn_token()
+    
+    timestamp = generate_timestamp()
+    nonce = generate_nonce()
+    sign = create_sign(timestamp, nonce)
+    request_id = generate_request_id()
+    
+    headers = {
+        'Accept': 'text/event-stream',
+        'Content-Type': 'application/json',
+        'Origin': 'https://chatglm.cn',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Authorization': f'Bearer {token_info.access_token}',
+        'app-name': 'chatglm',
+        'x-app-platform': 'pc',
+        'x-app-version': '0.0.1',
+        'x-device-id': token_info.device_id,
+        'x-lang': 'zh',
+        'x-nonce': nonce,
+        'x-request-id': request_id,
+        'x-sign': sign,
+        'x-timestamp': timestamp,
+    }
+    
+    # 转换消息格式
+    cn_messages = []
+    system_content = ''
+    
+    for m in messages:
+        role = m.get('role', 'user')
+        content = m.get('content', '')
+        if isinstance(content, list):
+            content = ' '.join([c.get('text', '') for c in content if c.get('type') == 'text'])
+        
+        if role == 'system':
+            system_content = content
+        elif role == 'user':
+            if system_content and not cn_messages:
+                content = f"[系统指令]\n{system_content}\n\n[用户问题]\n{content}"
+                system_content = ''
+            cn_messages.append({
+                'role': 'user',
+                'content': [{'type': 'text', 'text': content}]
+            })
+        elif role == 'assistant':
+            cn_messages.append({
+                'role': 'assistant',
+                'content': [{'type': 'text', 'text': content}]
+            })
+    
+    body = {
+        'assistant_id': '65940acff94777010aa6b796',
+        'conversation_id': '',
+        'project_id': '',
+        'chat_type': 'user_chat',
+        'meta_data': {
+            'cogview': {'rm_label_watermark': False},
+            'is_test': False,
+            'input_question_type': 'xxxx',
+            'channel': '',
+            'draft_id': '',
+            'chat_mode': 'zero',
+            'is_networking': False,
+            'quote_log_id': '',
+            'platform': 'pc'
+        },
+        'messages': cn_messages
+    }
+    
+    async with httpx.AsyncClient(timeout=120) as client:
+        async with client.stream(
+            'POST',
+            'https://chatglm.cn/chatglm/backend-api/assistant/stream',
+            headers=headers,
+            json=body,
+        ) as resp:
+            if resp.status_code != 200:
+                yield {"type": "error", "text": f"API 请求失败: {resp.status_code}"}
+                return
+            
+            last_content = ''
+            async for line in resp.aiter_lines():
+                if line.startswith('data:'):
+                    try:
+                        import json
+                        data = json.loads(line[5:].strip())
+                        parts = data.get('parts', [])
+                        if parts and parts[0].get('content'):
+                            content_list = parts[0]['content']
+                            if content_list and content_list[0].get('text'):
+                                new_content = content_list[0]['text']
+                                if new_content != last_content:
+                                    delta = new_content[len(last_content):]
+                                    last_content = new_content
+                                    yield {"type": "content", "text": delta}
+                    except:
+                        pass
+            
+            yield {"type": "done", "text": ""}
+
+
 async def glm_chat_completions(messages: list, model: str = 'glm-4.7') -> dict:
     """
     OpenAI 兼容的 chat completions 接口
