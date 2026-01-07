@@ -361,7 +361,16 @@ async def handle_responses(request: Request):
     history = fix_history_alternation(history)
     
     history_manager = HistoryManager(get_history_config(), cache_key=session_id)
+    
+    # 对于 Responses API，强制启用自动截断（Codex CLI 的历史可能很长）
+    from ..core.history_manager import TruncateStrategy
+    if TruncateStrategy.AUTO_TRUNCATE not in history_manager.config.strategies:
+        history_manager.config.strategies.append(TruncateStrategy.AUTO_TRUNCATE)
+    
     history = history_manager.pre_process(history, user_content)
+    
+    if history_manager.was_truncated:
+        print(f"[Responses] {history_manager.truncate_info}")
     
     kiro_tools = _convert_tools_to_kiro(tools)
     
