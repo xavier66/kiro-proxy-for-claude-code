@@ -150,6 +150,32 @@ async def api_logs(limit: int = 100):
     return await admin.get_logs(limit)
 
 
+# ==================== 账号导入导出 API ====================
+
+@app.get("/api/accounts/export")
+async def api_export_accounts():
+    """导出所有账号配置"""
+    return await admin.export_accounts()
+
+
+@app.post("/api/accounts/import")
+async def api_import_accounts(request: Request):
+    """导入账号配置"""
+    return await admin.import_accounts(request)
+
+
+@app.post("/api/accounts/manual")
+async def api_add_manual_token(request: Request):
+    """手动添加 Token"""
+    return await admin.add_manual_token(request)
+
+
+@app.post("/api/accounts/refresh-all")
+async def api_refresh_all():
+    """刷新所有即将过期的 token"""
+    return await admin.refresh_all_tokens()
+
+
 @app.get("/api/accounts")
 async def api_accounts():
     return await admin.get_accounts()
@@ -206,16 +232,16 @@ async def api_refresh_account(account_id: str):
     return await admin.refresh_account_token(account_id)
 
 
-@app.post("/api/accounts/refresh-all")
-async def api_refresh_all():
-    """刷新所有即将过期的 token"""
-    return await admin.refresh_all_tokens()
-
-
 @app.post("/api/accounts/{account_id}/restore")
 async def api_restore_account(account_id: str):
     """恢复账号（从冷却状态）"""
     return await admin.restore_account(account_id)
+
+
+@app.get("/api/accounts/{account_id}/usage")
+async def api_account_usage(account_id: str):
+    """获取账号用量信息"""
+    return await admin.get_account_usage_info(account_id)
 
 
 @app.get("/api/accounts/{account_id}")
@@ -369,12 +395,30 @@ async def api_export_flows(request: Request):
     return await admin.export_flows(request)
 
 
-# ==================== Usage API ====================
+# ==================== 远程登录 API ====================
 
-@app.get("/api/accounts/{account_id}/usage")
-async def api_account_usage(account_id: str):
-    """获取账号用量信息"""
-    return await admin.get_account_usage_info(account_id)
+@app.post("/api/remote-login/create")
+async def api_create_remote_login(request: Request):
+    """创建远程登录链接"""
+    return await admin.create_remote_login_link(request)
+
+
+@app.get("/api/remote-login/{session_id}/status")
+async def api_remote_login_status(session_id: str):
+    """获取远程登录状态"""
+    return await admin.get_remote_login_status(session_id)
+
+
+@app.post("/api/remote-login/{session_id}/complete")
+async def api_complete_remote_login(session_id: str, request: Request):
+    """完成远程登录"""
+    return await admin.complete_remote_login(session_id, request)
+
+
+@app.get("/remote-login/{session_id}", response_class=HTMLResponse)
+async def remote_login_page(session_id: str):
+    """远程登录页面"""
+    return admin.get_remote_login_page(session_id)
 
 
 # ==================== 历史消息管理 API ====================
@@ -466,7 +510,7 @@ async def api_docs_content(doc_id: str):
 def run(port: int = 8080):
     import uvicorn
     print(f"\n{'='*50}")
-    print(f"  Kiro API Proxy v1.6.1")
+    print(f"  Kiro API Proxy v1.6.3")
     print(f"  http://localhost:{port}")
     print(f"{'='*50}\n")
     uvicorn.run(app, host="0.0.0.0", port=port)

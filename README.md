@@ -33,6 +33,18 @@
 - **会话粘性** - 同一会话 60 秒内使用同一账号，保持上下文
 - **Web UI** - 简洁的管理界面，支持监控、日志、设置
 
+### v1.6.3 新功能
+- **命令行工具 (CLI)** - 无 GUI 服务器也能轻松管理
+  - `python run.py accounts list` - 列出账号
+  - `python run.py accounts export/import` - 导出/导入账号
+  - `python run.py accounts add` - 交互式添加 Token
+  - `python run.py accounts scan` - 扫描本地 Token
+  - `python run.py login google/github` - 命令行登录
+  - `python run.py login remote` - 生成远程登录链接
+- **远程登录链接** - 在有浏览器的机器上完成授权，Token 自动同步
+- **账号导入导出** - 跨机器迁移账号配置
+- **手动添加 Token** - 直接粘贴 accessToken/refreshToken
+
 ### v1.6.2 新功能
 - **Codex CLI 完整支持** - 使用 OpenAI Responses API (`/v1/responses`)
   - 完整工具调用支持（shell、file 等所有工具）
@@ -142,6 +154,29 @@ python run.py 8081
 ```
 
 启动后访问 http://localhost:8080
+
+### 命令行工具 (CLI)
+
+无 GUI 服务器可使用 CLI 管理账号：
+
+```bash
+# 账号管理
+python run.py accounts list              # 列出账号
+python run.py accounts export -o acc.json  # 导出账号
+python run.py accounts import acc.json   # 导入账号
+python run.py accounts add               # 交互式添加 Token
+python run.py accounts scan --auto       # 扫描并自动添加本地 Token
+
+# 登录
+python run.py login google               # Google 登录
+python run.py login github               # GitHub 登录
+python run.py login remote --host myserver.com:8080  # 生成远程登录链接
+
+# 服务
+python run.py serve                      # 启动服务 (默认 8080)
+python run.py serve -p 8081              # 指定端口
+python run.py status                     # 查看状态
+```
 
 ### 登录获取 Token
 
@@ -259,8 +294,11 @@ kiro_proxy/
 ├── handlers/                  # API 处理器
 │   ├── anthropic.py          # /v1/messages
 │   ├── openai.py             # /v1/chat/completions
+│   ├── responses.py          # /v1/responses (Codex CLI)
 │   ├── gemini.py             # /v1/models/{model}:generateContent
 │   └── admin.py              # 管理 API
+│
+├── cli.py                     # 命令行工具
 │
 ├── docs/                      # 内置文档
 │   ├── 01-quickstart.md      # 快速开始

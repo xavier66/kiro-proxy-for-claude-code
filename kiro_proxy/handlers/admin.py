@@ -759,3 +759,335 @@ async def get_account_usage_info(account_id: str):
             else:
                 return {"ok": False, "error": result.get("error", "查询失败")}
     raise HTTPException(404, "Account not found")
+
+
+# ==================== 账号导入导出 API ====================
+
+async def export_accounts():
+    """导出所有账号配置（包含 token）"""
+    accounts_data = []
+    for acc in state.accounts:
+        creds = acc.get_credentials()
+        if creds:
+            accounts_data.append({
+                "name": acc.name,
+                "enabled": acc.enabled,
+                "credentials": {
+                    "accessToken": creds.access_token,
+                    "refreshToken": creds.refresh_token,
+                    "expiresAt": creds.expires_at,
+                    "region": creds.region,
+                    "authMethod": creds.auth_method,
+                    "clientId": creds.client_id,
+                    "clientSecret": creds.client_secret,
+                }
+            })
+    return {
+        "ok": True,
+        "accounts": accounts_data,
+        "exported_at": datetime.now().isoformat(),
+        "version": "1.0"
+    }
+
+
+async def import_accounts(request: Request):
+    """导入账号配置"""
+    body = await request.json()
+    accounts_data = body.get("accounts", [])
+    imported = 0
+    errors = []
+    
+    for acc_data in accounts_data:
+        try:
+            creds = acc_data.get("credentials", {})
+            if not creds.get("accessToken"):
+                errors.append(f"{acc_data.get('name', '未知')}: 缺少 accessToken")
+                continue
+            
+            # 保存凭证到文件
+            file_path = await save_credentials_to_file({
+                "accessToken": creds.get("accessToken"),
+                "refreshToken": creds.get("refreshToken"),
+                "expiresAt": creds.get("expiresAt"),
+                "region": creds.get("region", "us-east-1"),
+                "authMethod": creds.get("authMethod", "social"),
+                "clientId": creds.get("clientId"),
+                "clientSecret": creds.get("clientSecret"),
+            }, f"imported-{uuid.uuid4().hex[:8]}")
+            
+            # 添加账号
+            account = Account(
+                id=uuid.uuid4().hex[:8],
+                name=acc_data.get("name", "导入账号"),
+                token_path=file_path,
+                enabled=acc_data.get("enabled", True)
+            )
+            state.accounts.append(account)
+            account.load_credentials()
+            imported += 1
+        except Exception as e:
+            errors.append(f"{acc_data.get('name', '未知')}: {str(e)}")
+    
+    state._save_accounts()
+    return {"ok": True, "imported": imported, "errors": errors}
+
+
+async def add_manual_token(request: Request):
+    """手动添加 Token"""
+    body = await request.json()
+    access_token = body.get("access_token", "").strip()
+    refresh_token = body.get("refresh_token", "").strip()
+    name = body.get("name", "手动添加账号")
+    
+    if not access_token:
+        raise HTTPException(400, "缺少 access_token")
+    
+    # 保存凭证到文件
+    file_path = await save_credentials_to_file({
+        "accessToken": access_token,
+        "refreshToken": refresh_token if refresh_token else None,
+        "region": body.get("region", "us-east-1"),
+        "authMethod": "social",
+    }, f"manual-{uuid.uuid4().hex[:8]}")
+    
+    # 添加账号
+    account = Account(
+        id=uuid.uuid4().hex[:8],
+        name=name,
+        token_path=file_path
+    )
+    state.accounts.append(account)
+    account.load_credentials()
+    state._save_accounts()
+    
+    return {"ok": True, "account_id": account.id}
+
+
+# ==================== 远程登录链接 API ====================
+
+# 存储远程登录会话
+_remote_login_sessions = {}
+
+
+async def create_remote_login_link(request: Request):
+    """创建远程登录链接"""
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    
+    # 生成唯一 session ID
+    session_id = uuid.uuid4().hex
+    expires_at = time.time() + 600  # 10 分钟有效期
+    
+    _remote_login_sessions[session_id] = {
+        "status": "pending",
+        "created_at": time.time(),
+        "expires_at": expires_at,
+        "provider": body.get("provider", "google"),
+    }
+    
+    # 获取服务器地址
+    host = request.headers.get("host", "localhost:8080")
+    scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
+    
+    login_url = f"{scheme}://{host}/remote-login/{session_id}"
+    
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "login_url": login_url,
+        "expires_in": 600,
+    }
+
+
+async def get_remote_login_status(session_id: str):
+    """获取远程登录状态"""
+    session = _remote_login_sessions.get(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    
+    if time.time() > session["expires_at"]:
+        del _remote_login_sessions[session_id]
+        return {"ok": False, "error": "Session expired"}
+    
+    return {
+        "ok": True,
+        "status": session["status"],
+        "account_id": session.get("account_id"),
+    }
+
+
+async def complete_remote_login(session_id: str, request: Request):
+    """完成远程登录（接收 OAuth 回调）"""
+    session = _remote_login_sessions.get(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found or expired")
+    
+    if time.time() > session["expires_at"]:
+        del _remote_login_sessions[session_id]
+        raise HTTPException(400, "Session expired")
+    
+    body = await request.json()
+    code = body.get("code")
+    oauth_state = body.get("state")
+    
+    if not code or not oauth_state:
+        raise HTTPException(400, "Missing code or state")
+    
+    # 交换 token
+    success, result = await exchange_social_auth_token(code, oauth_state)
+    
+    if not success:
+        session["status"] = "failed"
+        session["error"] = result.get("error", "Token exchange failed")
+        return {"ok": False, "error": session["error"]}
+    
+    if result.get("completed"):
+        credentials = result["credentials"]
+        provider = result.get("provider", "Social")
+        
+        # 保存凭证
+        file_path = await save_credentials_to_file(credentials, f"remote-{provider.lower()}")
+        
+        # 添加账号
+        account = Account(
+            id=uuid.uuid4().hex[:8],
+            name=f"远程登录 ({provider})",
+            token_path=file_path
+        )
+        state.accounts.append(account)
+        account.load_credentials()
+        state._save_accounts()
+        
+        session["status"] = "completed"
+        session["account_id"] = account.id
+        
+        return {
+            "ok": True,
+            "completed": True,
+            "account_id": account.id,
+        }
+    
+    return {"ok": False, "error": "Unexpected state"}
+
+
+def get_remote_login_page(session_id: str) -> str:
+    """生成远程登录页面 HTML"""
+    session = _remote_login_sessions.get(session_id)
+    if not session or time.time() > session.get("expires_at", 0):
+        return """
+        <!DOCTYPE html>
+        <html><head><title>链接已过期</title></head>
+        <body style="font-family:sans-serif;text-align:center;padding:50px">
+        <h1>❌ 链接已过期</h1>
+        <p>请重新生成登录链接</p>
+        </body></html>
+        """
+    
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Kiro Proxy 远程登录</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }}
+            .card {{ background: white; border-radius: 12px; padding: 2rem; max-width: 400px; width: 90%; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+            h1 {{ font-size: 1.5rem; margin-bottom: 1rem; text-align: center; }}
+            p {{ color: #666; margin-bottom: 1.5rem; text-align: center; }}
+            .btn {{ display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-size: 1rem; margin-bottom: 0.75rem; transition: background 0.2s; }}
+            .btn:hover {{ background: #f5f5f5; }}
+            .status {{ text-align: center; padding: 1rem; background: #f0f9ff; border-radius: 8px; margin-top: 1rem; display: none; }}
+            .input {{ width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 0.75rem; font-size: 1rem; }}
+            .submit {{ background: #000; color: white; border: none; }}
+            .submit:hover {{ background: #333; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>🔐 Kiro Proxy 远程登录</h1>
+            <p>选择登录方式完成授权</p>
+            
+            <button class="btn" onclick="startLogin('google')">
+                <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Google 登录
+            </button>
+            
+            <button class="btn" onclick="startLogin('github')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                GitHub 登录
+            </button>
+            
+            <div style="text-align:center;color:#999;margin:1rem 0">或</div>
+            
+            <p style="font-size:0.875rem;margin-bottom:0.5rem">授权完成后粘贴回调 URL：</p>
+            <input type="text" class="input" id="callbackUrl" placeholder="粘贴回调 URL...">
+            <button class="btn submit" onclick="submitCallback()">提交</button>
+            
+            <div class="status" id="status"></div>
+        </div>
+        
+        <script>
+            const sessionId = '{session_id}';
+            let authState = null;
+            
+            async function startLogin(provider) {{
+                try {{
+                    const r = await fetch('/api/kiro/social/start', {{
+                        method: 'POST',
+                        headers: {{'Content-Type': 'application/json'}},
+                        body: JSON.stringify({{provider}})
+                    }});
+                    const d = await r.json();
+                    if (d.ok) {{
+                        authState = d.state;
+                        window.open(d.login_url, '_blank');
+                        showStatus('请在新窗口完成授权，然后粘贴回调 URL', 'info');
+                    }} else {{
+                        showStatus('启动登录失败: ' + d.error, 'error');
+                    }}
+                }} catch(e) {{
+                    showStatus('启动登录失败: ' + e.message, 'error');
+                }}
+            }}
+            
+            async function submitCallback() {{
+                const url = document.getElementById('callbackUrl').value;
+                if (!url) {{ showStatus('请粘贴回调 URL', 'error'); return; }}
+                
+                try {{
+                    const urlObj = new URL(url);
+                    const code = urlObj.searchParams.get('code');
+                    const state = urlObj.searchParams.get('state');
+                    if (!code || !state) {{ showStatus('无效的回调 URL', 'error'); return; }}
+                    
+                    showStatus('正在验证...', 'info');
+                    
+                    const r = await fetch('/api/remote-login/' + sessionId + '/complete', {{
+                        method: 'POST',
+                        headers: {{'Content-Type': 'application/json'}},
+                        body: JSON.stringify({{code, state}})
+                    }});
+                    const d = await r.json();
+                    
+                    if (d.ok && d.completed) {{
+                        showStatus('✅ 登录成功！可以关闭此页面', 'success');
+                    }} else {{
+                        showStatus('❌ ' + (d.error || '登录失败'), 'error');
+                    }}
+                }} catch(e) {{
+                    showStatus('处理失败: ' + e.message, 'error');
+                }}
+            }}
+            
+            function showStatus(msg, type) {{
+                const el = document.getElementById('status');
+                el.style.display = 'block';
+                el.textContent = msg;
+                el.style.background = type === 'error' ? '#fef2f2' : type === 'success' ? '#f0fdf4' : '#f0f9ff';
+                el.style.color = type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : '#0284c7';
+            }}
+        </script>
+    </body>
+    </html>
+    """

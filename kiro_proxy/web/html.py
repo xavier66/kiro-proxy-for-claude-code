@@ -210,10 +210,12 @@ HTML_ACCOUNTS = '''
     <h3>账号管理</h3>
     <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
       <button onclick="showLoginOptions()">在线登录</button>
+      <button class="secondary" onclick="createRemoteLogin()">远程登录链接</button>
       <button class="secondary" onclick="scanTokens()">扫描 Token</button>
-      <button class="secondary" onclick="showAddAccount()">手动添加</button>
-      <button class="secondary" onclick="refreshAllTokens()">刷新所有 Token</button>
-      <button class="secondary" onclick="checkTokens()">检查有效期</button>
+      <button class="secondary" onclick="showManualAdd()">手动添加</button>
+      <button class="secondary" onclick="exportAccounts()">导出账号</button>
+      <button class="secondary" onclick="importAccounts()">导入账号</button>
+      <button class="secondary" onclick="refreshAllTokens()">刷新 Token</button>
     </div>
     <div id="accountList"></div>
   </div>
@@ -250,6 +252,27 @@ HTML_ACCOUNTS = '''
     <h3>Kiro 在线登录 <button class="secondary small" onclick="cancelKiroLogin()">取消</button></h3>
     <div id="loginContent"></div>
   </div>
+  <div class="card" id="remoteLoginPanel" style="display:none">
+    <h3>远程登录链接 <button class="secondary small" onclick="$('#remoteLoginPanel').style.display='none'">关闭</button></h3>
+    <div id="remoteLoginContent"></div>
+  </div>
+  <div class="card" id="manualAddPanel" style="display:none">
+    <h3>手动添加 Token <button class="secondary small" onclick="$('#manualAddPanel').style.display='none'">关闭</button></h3>
+    <div style="margin-bottom:1rem">
+      <label style="display:block;font-size:0.875rem;color:var(--muted);margin-bottom:0.25rem">账号名称</label>
+      <input type="text" id="manualName" placeholder="我的账号" style="width:100%;padding:0.5rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text)">
+    </div>
+    <div style="margin-bottom:1rem">
+      <label style="display:block;font-size:0.875rem;color:var(--muted);margin-bottom:0.25rem">Access Token *</label>
+      <textarea id="manualAccessToken" placeholder="粘贴 accessToken..." style="width:100%;height:80px;padding:0.5rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-family:monospace;font-size:0.8rem"></textarea>
+    </div>
+    <div style="margin-bottom:1rem">
+      <label style="display:block;font-size:0.875rem;color:var(--muted);margin-bottom:0.25rem">Refresh Token（可选）</label>
+      <textarea id="manualRefreshToken" placeholder="粘贴 refreshToken..." style="width:100%;height:80px;padding:0.5rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-family:monospace;font-size:0.8rem"></textarea>
+    </div>
+    <p style="color:var(--muted);font-size:0.75rem;margin-bottom:1rem">Token 可从 ~/.aws/sso/cache/ 目录下的 JSON 文件中获取</p>
+    <button onclick="submitManualToken()">添加账号</button>
+  </div>
   <div class="card" id="scanResults" style="display:none">
     <h3>扫描结果</h3>
     <div id="scanList"></div>
@@ -257,10 +280,13 @@ HTML_ACCOUNTS = '''
   <div class="card">
     <h3>登录方式</h3>
     <p style="color:var(--muted);font-size:0.875rem;margin-bottom:0.5rem">
-      <strong>方式一：在线登录（推荐）</strong> - 点击上方"在线登录"按钮，浏览器授权
+      <strong>在线登录</strong> - 本机浏览器授权 | <strong>远程登录链接</strong> - 生成链接在其他机器授权
     </p>
     <p style="color:var(--muted);font-size:0.875rem;margin-bottom:0.5rem">
-      <strong>方式二：扫描 Token</strong> - 从 Kiro IDE 登录后扫描本地 Token
+      <strong>扫描 Token</strong> - 从 Kiro IDE 扫描 | <strong>手动添加</strong> - 直接粘贴 Token
+    </p>
+    <p style="color:var(--muted);font-size:0.875rem">
+      <strong>导入导出</strong> - 跨机器迁移账号配置
     </p>
   </div>
 </div>
@@ -822,6 +848,121 @@ async function checkTokens(){
     alert(msg);
   }catch(e){alert('检查失败: '+e.message)}
 }
+
+// 远程登录链接
+let remoteLoginPollTimer=null;
+
+async function createRemoteLogin(){
+  try{
+    const r=await fetch('/api/remote-login/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const d=await r.json();
+    if(!d.ok){alert('创建失败: '+d.error);return;}
+    $('#remoteLoginPanel').style.display='block';
+    $('#remoteLoginContent').innerHTML=`
+      <div style="text-align:center;padding:1rem">
+        <p style="margin-bottom:1rem">将此链接发送到有浏览器的机器上完成登录：</p>
+        <div style="background:var(--bg);padding:1rem;border-radius:8px;margin-bottom:1rem;word-break:break-all;font-family:monospace;font-size:0.875rem">${d.login_url}</div>
+        <button onclick="copy('${d.login_url}')">复制链接</button>
+        <p style="color:var(--muted);font-size:0.75rem;margin-top:1rem">链接有效期 10 分钟</p>
+        <p style="color:var(--muted);font-size:0.875rem;margin-top:0.5rem" id="remoteLoginStatus">等待登录...</p>
+      </div>
+    `;
+    startRemoteLoginPoll(d.session_id);
+  }catch(e){alert('创建失败: '+e.message)}
+}
+
+function startRemoteLoginPoll(sessionId){
+  if(remoteLoginPollTimer)clearInterval(remoteLoginPollTimer);
+  remoteLoginPollTimer=setInterval(async()=>{
+    try{
+      const r=await fetch('/api/remote-login/'+sessionId+'/status');
+      const d=await r.json();
+      if(d.status==='completed'){
+        $('#remoteLoginStatus').textContent='✅ 登录成功！';
+        $('#remoteLoginStatus').style.color='var(--success)';
+        clearInterval(remoteLoginPollTimer);
+        setTimeout(()=>{$('#remoteLoginPanel').style.display='none';loadAccounts();},1500);
+      }else if(d.status==='failed'){
+        $('#remoteLoginStatus').textContent='❌ 登录失败';
+        $('#remoteLoginStatus').style.color='var(--error)';
+        clearInterval(remoteLoginPollTimer);
+      }
+    }catch(e){}
+  },3000);
+}
+
+// 手动添加 Token
+function showManualAdd(){
+  $('#manualAddPanel').style.display='block';
+  $('#manualName').value='';
+  $('#manualAccessToken').value='';
+  $('#manualRefreshToken').value='';
+}
+
+async function submitManualToken(){
+  const name=$('#manualName').value||'手动添加账号';
+  const accessToken=$('#manualAccessToken').value.trim();
+  const refreshToken=$('#manualRefreshToken').value.trim();
+  if(!accessToken){alert('请输入 Access Token');return;}
+  try{
+    const r=await fetch('/api/accounts/manual',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,access_token:accessToken,refresh_token:refreshToken})
+    });
+    const d=await r.json();
+    if(d.ok){
+      alert('添加成功');
+      $('#manualAddPanel').style.display='none';
+      loadAccounts();
+    }else{
+      alert(d.detail||'添加失败');
+    }
+  }catch(e){alert('添加失败: '+e.message)}
+}
+
+// 导出账号
+async function exportAccounts(){
+  try{
+    const r=await fetch('/api/accounts/export');
+    const d=await r.json();
+    if(!d.ok){alert('导出失败');return;}
+    const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='kiro-accounts-'+new Date().toISOString().slice(0,10)+'.json';
+    a.click();
+  }catch(e){alert('导出失败: '+e.message)}
+}
+
+// 导入账号
+function importAccounts(){
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='.json';
+  input.onchange=async(e)=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    try{
+      const text=await file.text();
+      const data=JSON.parse(text);
+      const r=await fetch('/api/accounts/import',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(data)
+      });
+      const d=await r.json();
+      if(d.ok){
+        alert(`导入成功: ${d.imported} 个账号`+(d.errors?.length?`\\n错误: ${d.errors.join(', ')}`:''));
+        loadAccounts();
+      }else{
+        alert('导入失败');
+      }
+    }catch(e){alert('导入失败: '+e.message)}
+  };
+  input.click();
+}
 '''
 
 JS_LOGIN = '''
@@ -1173,7 +1314,7 @@ HTML_PAGE = f'''<!DOCTYPE html>
 <body>
 <div class="container">
 {HTML_BODY}
-<div class="footer">Kiro API Proxy v1.6.1 - Flow Monitor | 在线登录 | Token 自动刷新 | 配额管理 | 请求限速</div>
+<div class="footer">Kiro API Proxy v1.6.3 - 远程登录 | 账号导入导出 | Flow Monitor | 请求限速</div>
 </div>
 <script>
 {JS_SCRIPTS}
