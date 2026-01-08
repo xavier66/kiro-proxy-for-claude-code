@@ -1,2 +1,2 @@
 # Kiro API Proxy
-__version__ = "1.2.1"
+__version__ = "1.7.0"

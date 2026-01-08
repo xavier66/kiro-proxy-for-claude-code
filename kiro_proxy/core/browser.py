@@ -1,5 +1,6 @@
 """浏览器检测和打开"""
 import os
+import shlex
 import shutil
 import subprocess
 import platform
@@ -59,30 +60,57 @@ def detect_browsers() -> List[BrowserInfo]:
     if system == "windows":
         import winreg
 
+        def normalize_exe_path(raw: str) -> Optional[str]:
+            if not raw:
+                return None
+            expanded = os.path.expandvars(raw.strip())
+            try:
+                parts = shlex.split(expanded, posix=False)
+            except ValueError:
+                parts = [expanded]
+            candidate = (parts[0] if parts else expanded).strip().strip('"')
+            if os.path.exists(candidate):
+                return candidate
+            lower = expanded.lower()
+            exe_idx = lower.find(".exe")
+            if exe_idx != -1:
+                candidate = expanded[:exe_idx + 4].strip().strip('"')
+                if os.path.exists(candidate):
+                    return candidate
+            return None
+
         def get_reg_path(exe_name: str) -> Optional[str]:
             name = f"{exe_name}.exe"
             for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
                 try:
                     with winreg.OpenKey(root, rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{name}") as key:
-                        path = winreg.QueryValue(key, "")
-                        if path and os.path.exists(path):
+                        value, _ = winreg.QueryValueEx(key, "")
+                        path = normalize_exe_path(value)
+                        if path:
                             return path
                 except (FileNotFoundError, OSError, WindowsError):
                     pass
             return None
 
         for browser_id, config in BROWSER_CONFIGS.items():
+            path = None
             for exe_name in config["names"]:
                 path = get_reg_path(exe_name)
                 if path:
-                    browsers.append(BrowserInfo(
-                        id=browser_id,
-                        name=config["display"],
-                        path=path,
-                        supports_incognito=bool(config.get("incognito")),
-                        incognito_arg=config.get("incognito", ""),
-                    ))
                     break
+            if not path:
+                for exe_name in config["names"]:
+                    path = shutil.which(exe_name)
+                    if path:
+                        break
+            if path:
+                browsers.append(BrowserInfo(
+                    id=browser_id,
+                    name=config["display"],
+                    path=path,
+                    supports_incognito=bool(config.get("incognito")),
+                    incognito_arg=config.get("incognito", ""),
+                ))
     else:
         for browser_id, config in BROWSER_CONFIGS.items():
             for name in config["names"]:

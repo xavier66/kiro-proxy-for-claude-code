@@ -11,7 +11,7 @@
 1. 确认代理已启动
    ```bash
    python run.py
-   # 应该看到: Kiro API Proxy v1.5.0
+   # 应该看到: Kiro API Proxy v1.7.0
    #          http://localhost:8080
    ```
 

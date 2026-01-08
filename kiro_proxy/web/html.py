@@ -908,15 +908,19 @@ async function scanTokens(){
     const list=$('#scanList');
     if(d.tokens&&d.tokens.length>0){
       panel.style.display='block';
-      list.innerHTML=d.tokens.map(t=>`
+      list.innerHTML=d.tokens.map(t=>{
+        const path=encodeURIComponent(t.path||'');
+        const name=encodeURIComponent(t.name||'');
+        return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem;border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem">
           <div>
             <div>${t.name}</div>
             <div style="color:var(--muted);font-size:0.75rem">${t.path}</div>
           </div>
-          ${t.already_added?'<span class="badge info">已添加</span>':`<button class="secondary small" onclick='addFromScan(${JSON.stringify(t.path)},${JSON.stringify(t.name)})'>添加</button>`}
+          ${t.already_added?'<span class="badge info">已添加</span>':`<button class="secondary small" data-path="${path}" data-name="${name}" onclick="addFromScan(decodeURIComponent(this.dataset.path),decodeURIComponent(this.dataset.name))">添加</button>`}
         </div>
-      `).join('');
+        `;
+      }).join('');
     }else{
       alert('未找到 Token 文件');
     }

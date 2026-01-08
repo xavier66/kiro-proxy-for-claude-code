@@ -282,7 +282,7 @@ def main():
         prog="kiro-proxy",
         description="Kiro API Proxy CLI"
     )
-    parser.add_argument("-v", "--version", action="version", version="1.6.3")
+    parser.add_argument("-v", "--version", action="version", version="1.7.0")
     
     subparsers = parser.add_subparsers(dest="command", help="命令")
     
