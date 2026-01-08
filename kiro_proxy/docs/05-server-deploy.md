@@ -22,31 +22,31 @@
 
 ```bash
 # 下载最新版本
-wget https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.0-linux-x86_64
+wget https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.1-linux-x86_64
 
 # 添加执行权限
-chmod +x KiroProxy-1.7.0-linux-x86_64
+chmod +x KiroProxy-1.7.1-linux-x86_64
 
 # 运行
-./KiroProxy-1.7.0-linux-x86_64
+./KiroProxy-1.7.1-linux-x86_64
 
 # 指定端口
-./KiroProxy-1.7.0-linux-x86_64 8081
+./KiroProxy-1.7.1-linux-x86_64 8081
 ```
 
 **使用 curl 下载：**
 
 ```bash
-curl -LO https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.0-linux-x86_64
-chmod +x KiroProxy-1.7.0-linux-x86_64
-./KiroProxy-1.7.0-linux-x86_64
+curl -LO https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.1-linux-x86_64
+chmod +x KiroProxy-1.7.1-linux-x86_64
+./KiroProxy-1.7.1-linux-x86_64
 ```
 
 **Debian/Ubuntu 使用 deb 包：**
 
 ```bash
-wget https://github.com/petehsu/KiroProxy/releases/latest/download/kiroproxy_1.7.0_amd64.deb
-sudo dpkg -i kiroproxy_1.7.0_amd64.deb
+wget https://github.com/petehsu/KiroProxy/releases/latest/download/kiroproxy_1.7.1_amd64.deb
+sudo dpkg -i kiroproxy_1.7.1_amd64.deb
 
 # 运行
 KiroProxy
@@ -55,8 +55,8 @@ KiroProxy
 **Fedora/RHEL/CentOS 使用 rpm 包：**
 
 ```bash
-wget https://github.com/petehsu/KiroProxy/releases/latest/download/kiroproxy-1.7.0-1.x86_64.rpm
-sudo rpm -i kiroproxy-1.7.0-1.x86_64.rpm
+wget https://github.com/petehsu/KiroProxy/releases/latest/download/kiroproxy-1.7.1-1.x86_64.rpm
+sudo rpm -i kiroproxy-1.7.1-1.x86_64.rpm
 
 # 运行
 KiroProxy
@@ -66,19 +66,19 @@ KiroProxy
 
 ```bash
 # Intel Mac
-curl -LO https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.0-macos-x86_64
-chmod +x KiroProxy-1.7.0-macos-x86_64
-./KiroProxy-1.7.0-macos-x86_64
+curl -LO https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.1-macos-x86_64
+chmod +x KiroProxy-1.7.1-macos-x86_64
+./KiroProxy-1.7.1-macos-x86_64
 
 # 如果提示无法验证开发者，运行：
-xattr -d com.apple.quarantine KiroProxy-1.7.0-macos-x86_64
+xattr -d com.apple.quarantine KiroProxy-1.7.1-macos-x86_64
 ```
 
 ### Windows
 
 ```powershell
 # PowerShell 下载
-Invoke-WebRequest -Uri "https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.0-windows-x86_64.exe" -OutFile "KiroProxy.exe"
+Invoke-WebRequest -Uri "https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.1-windows-x86_64.exe" -OutFile "KiroProxy.exe"
 
 # 运行
 .\KiroProxy.exe
@@ -334,7 +334,7 @@ WantedBy=multi-user.target
 ```bash
 # 创建目录并下载
 sudo mkdir -p /opt/kiro-proxy
-sudo wget -O /opt/kiro-proxy/KiroProxy https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.0-linux-x86_64
+sudo wget -O /opt/kiro-proxy/KiroProxy https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.1-linux-x86_64
 sudo chmod +x /opt/kiro-proxy/KiroProxy
 
 # 创建服务文件
@@ -643,7 +643,7 @@ sudo journalctl -u kiro-proxy -f
 sudo systemctl stop kiro-proxy
 
 # 下载新版本
-sudo wget -O /opt/kiro-proxy/KiroProxy https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.0-linux-x86_64
+sudo wget -O /opt/kiro-proxy/KiroProxy https://github.com/petehsu/KiroProxy/releases/latest/download/KiroProxy-1.7.1-linux-x86_64
 sudo chmod +x /opt/kiro-proxy/KiroProxy
 
 # 启动服务

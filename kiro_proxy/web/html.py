@@ -1507,7 +1507,7 @@ HTML_PAGE = f'''<!DOCTYPE html>
 <body>
 <div class="container">
 {HTML_BODY}
-<div class="footer">Kiro API Proxy v1.7.0 - Codex 工具调用 | 环境变量配置 | 限速开关修复</div>
+<div class="footer">Kiro API Proxy v1.7.1 - Codex 工具调用 | 环境变量配置 | 限速开关修复</div>
 </div>
 <script>
 {JS_SCRIPTS}
