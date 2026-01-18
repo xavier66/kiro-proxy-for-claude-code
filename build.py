@@ -36,7 +36,7 @@ def ensure_pyinstaller():
         subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"], check=True)
 
 def clean_build():
-    for d in ["build", "dist", f"{APP_NAME}.spec"]:
+    for d in ["build", "dist"]:
         if os.path.isdir(d):
             shutil.rmtree(d)
         elif os.path.isfile(d):
@@ -71,6 +71,10 @@ def build_app():
             "--clean",
             "--noconfirm",
         ]
+
+        hooks_dir = Path("hooks")
+        if hooks_dir.exists():
+            args.extend(["--additional-hooks-dir", str(hooks_dir)])
         
         icon_file = None
         if platform == "windows" and (ICON_DIR / "icon.ico").exists():
@@ -101,6 +105,7 @@ def build_app():
         # 收集整个 kiro_proxy 包
         args.extend(["--collect-submodules", "kiro_proxy"])
         args.extend(["--collect-data", "kiro_proxy"])
+        args.extend(["--hidden-import", "kiro_proxy.web.webui"])
         
         args.append(MAIN_SCRIPT)
     
