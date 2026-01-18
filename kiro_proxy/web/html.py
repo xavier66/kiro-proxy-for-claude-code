@@ -1355,60 +1355,30 @@ async function exportFlows(){
 JS_SETTINGS = '''
 // 设置页面
 
-// 策略警告信息
-const strategyWarnings = {
-  error_retry: {
-    title: '⚠️ 关闭"错误重试"策略',
-    message: `关闭此策略后，当对话历史过长导致 Kiro API 返回错误时，代理将不会自动截断重试。
-
-<b>可能遇到的问题：</b>
-• 错误信息：CONTENT_LENGTH_EXCEEDS_THRESHOLD 或 "Input is too long"
-• HTTP 状态码：400 Bad Request
-• 客户端显示：请求失败、对话中断
-
-<b>为什么会发生：</b>
-Kiro API 对输入长度有限制，长对话会超过这个限制。
-
-<b>手动处理方法：</b>
-• Claude Code: 输入 /clear 清空对话历史
-• Codex CLI: 开始新对话
-• 其他客户端: 清空或缩短对话历史
-
-<b>建议：</b>保持此策略启用，除非你有特殊需求。`
-  },
-  auto_truncate: {
-    title: '⚠️ 关闭"自动截断"策略',
-    message: `关闭此策略后，代理将不会在发送前自动截断过长的历史消息。
-
-<b>可能遇到的问题：</b>
-• 请求可能因历史过长而失败
-• 需要依赖"错误重试"策略来处理
-
-<b>建议：</b>如果你启用了"错误重试"，可以关闭此策略。`
-  },
-  smart_summary: {
-    title: '关闭"智能摘要"策略',
-    message: `关闭此策略后，代理将不会用 AI 生成早期对话摘要。
-
-<b>影响：</b>
-• 截断时会丢失早期对话的上下文
-• 不会产生额外的 API 调用
-
-<b>建议：</b>如果你不需要保留早期对话上下文，可以关闭。`
-  },
-  pre_estimate: {
-    title: '关闭"预估检测"策略',
-    message: `关闭此策略后，代理将不会在发送前预估 token 数量。
-
-<b>影响：</b>
-• 可能会发送超长请求然后被拒绝
-• 需要依赖"错误重试"策略来处理
-
-<b>建议：</b>如果你启用了"错误重试"，可以关闭此策略。`
-  }
-};
+// 策略警告信息 - 使用 i18n
+function getStrategyWarnings() {
+  return {
+    error_retry: {
+      title: _('warning.errorRetry.title'),
+      message: _('warning.errorRetry.message')
+    },
+    auto_truncate: {
+      title: _('warning.autoTruncate.title'),
+      message: _('warning.autoTruncate.message')
+    },
+    smart_summary: {
+      title: _('warning.smartSummary.title'),
+      message: _('warning.smartSummary.message')
+    },
+    pre_estimate: {
+      title: _('warning.preEstimate.title'),
+      message: _('warning.preEstimate.message')
+    }
+  };
+}
 
 function onStrategyChange(strategy, checked) {
+  const strategyWarnings = getStrategyWarnings();
   if (!checked && strategyWarnings[strategy]) {
     const warning = strategyWarnings[strategy];
     const confirmed = confirm(warning.title + '\\n\\n' + warning.message.replace(/<[^>]+>/g, ''));
@@ -1605,7 +1575,15 @@ const I18N = {{
   "settings.globalRPM": "{js_escape(t('settings.globalRPM') if t('settings.globalRPM') != 'settings.globalRPM' else 'Global RPM')}",
   "settings.cooldownLabel": "{js_escape(t('settings.cooldownLabel') if t('settings.cooldownLabel') != 'settings.cooldownLabel' else '429 Cooldown')}",
   "settings.cooldownDisabled": "{js_escape(t('settings.cooldownDisabled') if t('settings.cooldownDisabled') != 'settings.cooldownDisabled' else '429 Cooldown: Disabled')}",
-  "docs.loadFailed": "{js_escape(t('docs.loadFailed') if t('docs.loadFailed') != 'docs.loadFailed' else 'Failed to load document')}"
+  "docs.loadFailed": "{js_escape(t('docs.loadFailed') if t('docs.loadFailed') != 'docs.loadFailed' else 'Failed to load document')}",
+  "warning.errorRetry.title": "{'⚠️ Disable Error Retry Strategy' if lang == 'en' else '⚠️ 关闭\"错误重试\"策略'}",
+  "warning.errorRetry.message": "{'When disabled, the proxy will not auto-truncate and retry when conversation history is too long.\\n\\nPossible issues:\\n• Error: CONTENT_LENGTH_EXCEEDS_THRESHOLD\\n• HTTP 400 Bad Request\\n\\nManual fix: Use /clear in Claude Code to clear history.\\n\\nRecommend: Keep this enabled.' if lang == 'en' else '关闭此策略后，当对话历史过长时，代理将不会自动截断重试。\\n\\n可能遇到的问题：\\n• 错误信息：CONTENT_LENGTH_EXCEEDS_THRESHOLD\\n• HTTP 状态码：400 Bad Request\\n\\n手动处理：在 Claude Code 中输入 /clear 清空对话历史。\\n\\n建议：保持此策略启用。'}",
+  "warning.autoTruncate.title": "{'⚠️ Disable Auto Truncate Strategy' if lang == 'en' else '⚠️ 关闭\"自动截断\"策略'}",
+  "warning.autoTruncate.message": "{'When disabled, the proxy will not auto-truncate long history before sending.\\n\\nPossible issues:\\n• Request may fail due to long history\\n• Relies on Error Retry to handle\\n\\nRecommend: If Error Retry is enabled, you can disable this.' if lang == 'en' else '关闭此策略后，代理将不会在发送前自动截断过长的历史消息。\\n\\n可能遇到的问题：\\n• 请求可能因历史过长而失败\\n• 需要依赖\"错误重试\"策略来处理\\n\\n建议：如果你启用了\"错误重试\"，可以关闭此策略。'}",
+  "warning.smartSummary.title": "{'Disable Smart Summary Strategy' if lang == 'en' else '关闭\"智能摘要\"策略'}",
+  "warning.smartSummary.message": "{'When disabled, the proxy will not use AI to summarize early conversations.\\n\\nImpact:\\n• Early conversation context will be lost when truncating\\n• No extra API calls\\n\\nRecommend: If you don\\'t need early context, you can disable this.' if lang == 'en' else '关闭此策略后，代理将不会用 AI 生成早期对话摘要。\\n\\n影响：\\n• 截断时会丢失早期对话的上下文\\n• 不会产生额外的 API 调用\\n\\n建议：如果你不需要保留早期对话上下文，可以关闭。'}",
+  "warning.preEstimate.title": "{'Disable Pre-estimate Strategy' if lang == 'en' else '关闭\"预估检测\"策略'}",
+  "warning.preEstimate.message": "{'When disabled, the proxy will not estimate token count before sending.\\n\\nImpact:\\n• May send requests that are too long and get rejected\\n• Relies on Error Retry to handle\\n\\nRecommend: If Error Retry is enabled, you can disable this.' if lang == 'en' else '关闭此策略后，代理将不会在发送前预估 token 数量。\\n\\n影响：\\n• 可能会发送超长请求然后被拒绝\\n• 需要依赖\"错误重试\"策略来处理\\n\\n建议：如果你启用了\"错误重试\"，可以关闭此策略.'}"
 }};
 function _(key) {{ return I18N[key] || key; }}
 '''
