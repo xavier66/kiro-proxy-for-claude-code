@@ -13,7 +13,7 @@ from .config import MODELS_URL
 from .core import state, scheduler, stats_manager
 from .handlers import anthropic, openai, gemini, admin
 from .handlers import responses as responses_handler
-from .web.html import HTML_PAGE
+from .web.html import get_html_page
 from .credential import generate_machine_id, get_kiro_version
 
 
@@ -48,7 +48,7 @@ app.add_middleware(
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    return HTML_PAGE
+    return get_html_page()
 
 
 @app.get("/assets/{path:path}")
