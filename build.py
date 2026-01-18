@@ -15,7 +15,7 @@ import subprocess
 from pathlib import Path
 
 APP_NAME = "KiroProxy"
-VERSION = "1.7.7"
+VERSION = "1.7.8"
 MAIN_SCRIPT = "run.py"
 ICON_DIR = Path("assets")
 
@@ -124,6 +124,12 @@ def build_app():
     ]
     for imp in hidden_imports:
         args.extend(["--hidden-import", imp])
+    
+    # 使用自定义 hook 目录
+    hooks_dir = Path("hooks")
+    if hooks_dir.exists():
+        args.extend(["--additional-hooks-dir", str(hooks_dir)])
+        print(f"[OK] Using custom hooks directory")
     
     # 收集整个 kiro_proxy 包的所有子模块
     args.extend(["--collect-submodules", "kiro_proxy"])
