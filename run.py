@@ -14,7 +14,7 @@ import kiro_proxy.cli
 import kiro_proxy.config
 import kiro_proxy.converters
 import kiro_proxy.web
-import kiro_proxy.web.html
+import kiro_proxy.web.webui
 import kiro_proxy.web.i18n
 import kiro_proxy.core
 import kiro_proxy.core.account

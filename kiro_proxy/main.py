@@ -13,7 +13,7 @@ from .config import MODELS_URL
 from .core import state, scheduler, stats_manager
 from .handlers import anthropic, openai, gemini, admin
 from .handlers import responses as responses_handler
-from .web.html import get_html_page
+from .web.webui import get_html_page
 from .credential import generate_machine_id, get_kiro_version
 
 
@@ -551,7 +551,7 @@ def run(port: int = 8080):
     from .core import state
     state.current_port = port  # 设置当前端口供 WebUI 显示
     print(f"\n{'='*50}")
-    print(f"  Kiro API Proxy v1.7.10")
+    print(f"  Kiro API Proxy v1.7.11")
     print(f"  http://localhost:{port}")
     print(f"{'='*50}\n")
     uvicorn.run(app, host="0.0.0.0", port=port)
