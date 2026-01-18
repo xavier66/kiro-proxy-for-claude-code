@@ -101,7 +101,7 @@ def launch_with_ui():
     port_frame = ttk.Frame(main_frame)
     port_frame.pack(fill="x", pady=10)
     
-    port_label = ttk.Label(port_frame, text="端口设置:")
+    port_label = ttk.Label(port_frame, text="Port 端口:")
     port_label.pack(side="left")
     
     port_var = tk.StringVar(value=str(config.get("port", 8080)))
@@ -121,18 +121,18 @@ def launch_with_ui():
     options_frame.pack(fill="x", pady=10)
     
     remember_var = tk.BooleanVar(value=config.get("remember_port", True))
-    remember_check = ttk.Checkbutton(options_frame, text="记住端口设置", variable=remember_var)
+    remember_check = ttk.Checkbutton(options_frame, text="Remember port 记住端口", variable=remember_var)
     remember_check.pack(anchor="w")
     
     browser_var = tk.BooleanVar(value=config.get("auto_open_browser", True))
-    browser_check = ttk.Checkbutton(options_frame, text="启动后自动打开浏览器", variable=browser_var)
+    browser_check = ttk.Checkbutton(options_frame, text="Auto open browser 自动打开浏览器", variable=browser_var)
     browser_check.pack(anchor="w")
     
     # 语言选择
     lang_frame = ttk.Frame(main_frame)
     lang_frame.pack(fill="x", pady=5)
     
-    lang_label = ttk.Label(lang_frame, text="界面语言:")
+    lang_label = ttk.Label(lang_frame, text="Language 语言:")
     lang_label.pack(side="left")
     
     lang_var = tk.StringVar(value=config.get("language", "zh"))
@@ -152,20 +152,20 @@ def launch_with_ui():
         try:
             port = int(port_var.get())
             if port < 1024 or port > 65535:
-                status_var.set("❌ 端口范围: 1024-65535")
+                status_var.set("❌ Port range / 端口范围: 1024-65535")
                 status_label.configure(foreground="red")
                 return None
             
             if not check_port_available(port):
-                status_var.set(f"❌ 端口 {port} 已被占用")
+                status_var.set(f"❌ Port {port} in use / 端口已被占用")
                 status_label.configure(foreground="red")
                 return None
             
-            status_var.set(f"✅ 端口 {port} 可用")
+            status_var.set(f"✅ Port {port} available / 可用")
             status_label.configure(foreground="green")
             return port
         except ValueError:
-            status_var.set("❌ 请输入有效的端口号")
+            status_var.set("❌ Invalid port / 请输入有效端口号")
             status_label.configure(foreground="red")
             return None
     
@@ -204,10 +204,10 @@ def launch_with_ui():
         root.quit()
         root.destroy()
     
-    start_btn = ttk.Button(button_frame, text="🚀 启动服务器", command=on_start, width=15)
+    start_btn = ttk.Button(button_frame, text="▶ Start 启动", command=on_start, width=18)
     start_btn.pack(side="left", padx=5)
     
-    cancel_btn = ttk.Button(button_frame, text="取消", command=on_cancel, width=10)
+    cancel_btn = ttk.Button(button_frame, text="Cancel 取消", command=on_cancel, width=12)
     cancel_btn.pack(side="left", padx=5)
     
     # 绑定回车键
