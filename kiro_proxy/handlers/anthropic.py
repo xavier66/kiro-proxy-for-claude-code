@@ -336,11 +336,12 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
 
                         # 正常处理响应
                         msg_id = f"msg_{log_id}"
-                        # 估算 input tokens：system + messages 字符数 ÷ 4
-                        est_input = _estimate_tokens(
-                            (_extract_text_from_content(system) if system else "") +
-                            " ".join(_extract_text_from_content(m.get("content","")) for m in messages)
+                        # 估算 input tokens：user_content + history 字符数 ÷ 4
+                        hist_text = " ".join(
+                            str(m.get("content","")) for m in (history or [])
+                            if isinstance(m, dict)
                         )
+                        est_input = _estimate_tokens(user_content + hist_text)
                         yield f'event: message_start\ndata: {{"type":"message_start","message":{{"id":"{msg_id}","type":"message","role":"assistant","content":[],"model":"{model}","stop_reason":null,"stop_sequence":null,"usage":{{"input_tokens":{est_input},"output_tokens":0}}}}}}\n\n'
                         yield f'event: content_block_start\ndata: {{"type":"content_block_start","index":0,"content_block":{{"type":"text","text":""}}}}\n\n'
 
