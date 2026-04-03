@@ -1312,16 +1312,50 @@ async function loadFlows(){
 
 function escapeHtml(s){if(typeof s!=='string')return JSON.stringify(s);return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-function renderValue(v){
-  if(v===null||v===undefined)return'<span style="color:var(--muted)">null</span>';
-  if(typeof v==='string')return'<span style="white-space:pre-wrap;word-break:break-all">'+escapeHtml(v)+'</span>';
-  if(Array.isArray(v))return'<pre style="margin:0;max-height:400px;overflow:auto;white-space:pre-wrap;font-size:0.85em">'+escapeHtml(JSON.stringify(v,null,2))+'</pre>';
-  if(typeof v==='object')return'<pre style="margin:0;max-height:400px;overflow:auto;white-space:pre-wrap;font-size:0.85em">'+escapeHtml(JSON.stringify(v,null,2))+'</pre>';
-  return escapeHtml(String(v));
+// 递归 JSON 树渲染，支持折叠/展开
+function jsonTree(val, depth){
+  depth=depth||0;
+  const indent='  '.repeat(depth);
+  if(val===null)return'<span style="color:#999">null</span>';
+  if(val===undefined)return'<span style="color:#999">undefined</span>';
+  if(typeof val==='boolean')return`<span style="color:#b5890a">${val}</span>`;
+  if(typeof val==='number')return`<span style="color:#2e86c1">${val}</span>`;
+  if(typeof val==='string'){
+    // 长字符串折叠
+    if(val.length>200){
+      const id='jt'+Math.random().toString(36).slice(2);
+      return`<span style="color:#27ae60">"<span id="${id}s">${escapeHtml(val.slice(0,200))}<span style="color:#999">... (${val.length} chars) </span><a href="#" style="font-size:0.8em" onclick="event.preventDefault();document.getElementById('${id}s').style.display='none';document.getElementById('${id}f').style.display='inline'">展开</a></span><span id="${id}f" style="display:none">${escapeHtml(val)}<a href="#" style="font-size:0.8em;margin-left:4px" onclick="event.preventDefault();document.getElementById('${id}f').style.display='none';document.getElementById('${id}s').style.display='inline'">收起</a></span>"</span>`;
+    }
+    return`<span style="color:#27ae60">"${escapeHtml(val)}"</span>`;
+  }
+  if(Array.isArray(val)){
+    if(val.length===0)return'<span style="color:#666">[]</span>';
+    const id='jt'+Math.random().toString(36).slice(2);
+    const items=val.map((v,i)=>`<div style="margin-left:1.2em">${jsonTree(v,depth+1)}${i<val.length-1?'<span style="color:#666">,</span>':''}</div>`).join('');
+    return`<span style="color:#666">[</span><span id="${id}b"> <a href="#" style="font-size:0.8em;color:#888" onclick="event.preventDefault();var e=document.getElementById('${id}c');var b=document.getElementById('${id}b');e.style.display=e.style.display==='none'?'block':'none';b.textContent=e.style.display==='none'?' ... (${val.length} items) ▶':' ▼'"> ▼</a><div id="${id}c">${items}</div></span><span style="color:#666">]</span>`;
+  }
+  if(typeof val==='object'){
+    const keys=Object.keys(val);
+    if(keys.length===0)return'<span style="color:#666">{}</span>';
+    const id='jt'+Math.random().toString(36).slice(2);
+    const items=keys.map((k,i)=>`<div style="margin-left:1.2em"><span style="color:#8e44ad">"${escapeHtml(k)}"</span><span style="color:#666">: </span>${jsonTree(val[k],depth+1)}${i<keys.length-1?'<span style="color:#666">,</span>':''}</div>`).join('');
+    return`<span style="color:#666">{</span><span id="${id}b"> <a href="#" style="font-size:0.8em;color:#888" onclick="event.preventDefault();var e=document.getElementById('${id}c');var b=document.getElementById('${id}b');e.style.display=e.style.display==='none'?'block':'none';b.textContent=e.style.display==='none'?' ... (${keys.length} keys) ▶':' ▼'"> ▼</a><div id="${id}c">${items}</div></span><span style="color:#666">}</span>`;
+  }
+  return escapeHtml(String(val));
 }
 
-function section(title,content){
-  return`<details style="margin:0.5rem 0;border:1px solid var(--border);border-radius:4px"><summary style="padding:0.5rem;cursor:pointer;font-weight:bold">${title}</summary><div style="padding:0.5rem">${content}</div></details>`;
+function jsonBox(val){
+  return`<div style="font-family:monospace;font-size:0.85em;padding:0.5rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;max-height:500px;overflow:auto;line-height:1.5">${jsonTree(val)}</div>`;
+}
+
+function renderValue(v){
+  if(v===null||v===undefined)return'<span style="color:var(--muted)">null</span>';
+  if(typeof v==='string')return`<pre style="margin:0;white-space:pre-wrap;font-size:0.85em">${escapeHtml(v)}</pre>`;
+  return jsonBox(v);
+}
+
+function section(title,content,open){
+  return`<details style="margin:0.5rem 0;border:1px solid var(--border);border-radius:4px"${open?' open':''}><summary style="padding:0.5rem;cursor:pointer;font-weight:bold;user-select:none">${title}</summary><div style="padding:0.5rem">${content}</div></details>`;
 }
 
 function closeFlowDetail(){
@@ -1348,32 +1382,32 @@ async function viewFlow(id){
 
     // 请求详情
     if(f.request){
-      let reqHtml=`<div style="margin-bottom:0.5rem"><strong>模型:</strong> ${escapeHtml(f.request.model)} | <strong>流式:</strong> ${f.request.stream?'是':'否'} | <strong>消息数:</strong> ${f.request.message_count||0} | <strong>Max Tokens:</strong> ${f.request.max_tokens||0} | <strong>Temperature:</strong> ${f.request.temperature||1.0}</div>`;
+      let reqHtml=`<div style="margin-bottom:0.5rem;font-size:0.9em"><strong>模型:</strong> ${escapeHtml(f.request.model)} | <strong>流式:</strong> ${f.request.stream?'是':'否'} | <strong>消息数:</strong> ${f.request.message_count||0} | <strong>Max Tokens:</strong> ${f.request.max_tokens||0} | <strong>Temperature:</strong> ${f.request.temperature||1.0}</div>`;
 
       // System Prompt
       if(f.request.system!==undefined&&f.request.system!==null&&f.request.system!==''){
         let sysContent='';
         if(Array.isArray(f.request.system)){
           sysContent=f.request.system.map((s,i)=>{
-            if(typeof s==='string')return`[${i}] ${escapeHtml(s)}`;
-            if(s.type==='text')return`[${i}] (text) ${escapeHtml(s.text||'')}`;
-            return`[${i}] ${renderValue(s)}`;
-          }).join('\\n\\n');
+            const label=`<div style="font-size:0.8em;color:#888;margin-bottom:0.25rem">[${i}] ${escapeHtml(s.type||'text')}${s.cache_control?' 🔒':''}</div>`;
+            const text=typeof s==='string'?s:(s.text||JSON.stringify(s));
+            return`<div style="margin-bottom:0.5rem;padding:0.5rem;background:var(--bg);border-radius:3px">${label}<pre style="margin:0;white-space:pre-wrap;font-size:0.85em">${escapeHtml(text)}</pre></div>`;
+          }).join('');
         }else{
-          sysContent=escapeHtml(String(f.request.system));
+          sysContent=`<pre style="margin:0;white-space:pre-wrap;font-size:0.85em">${escapeHtml(String(f.request.system))}</pre>`;
         }
-        reqHtml+=section(`System Prompt (${Array.isArray(f.request.system)?f.request.system.length+' parts':'string'})`,`<pre style="margin:0;max-height:500px;overflow:auto;white-space:pre-wrap;font-size:0.85em">${sysContent}</pre>`);
+        reqHtml+=section(`System Prompt (${Array.isArray(f.request.system)?f.request.system.length+' parts':'string'})`,sysContent,true);
       }
 
       // Messages
       if(f.request.messages&&f.request.messages.length>0){
         let msgContent=f.request.messages.map((m,i)=>{
-          let header=`<div style="margin:0.5rem 0 0.25rem;padding:0.25rem 0.5rem;background:var(--border);border-radius:3px"><strong>[${i}] ${escapeHtml(m.role)}</strong></div>`;
+          const roleColor={'user':'#2e86c1','assistant':'#27ae60','tool':'#8e44ad','system':'#e67e22'}[m.role]||'#666';
+          let header=`<div style="padding:0.25rem 0.5rem;background:var(--border);border-radius:3px;margin-bottom:0.25rem"><strong style="color:${roleColor}">[${i}] ${escapeHtml(m.role)}</strong></div>`;
           let body='';
           if(typeof m.content==='string') body=`<pre style="margin:0;white-space:pre-wrap;font-size:0.85em">${escapeHtml(m.content)}</pre>`;
-          else if(Array.isArray(m.content)) body='<pre style="margin:0;white-space:pre-wrap;font-size:0.85em">'+escapeHtml(JSON.stringify(m.content,null,2))+'</pre>';
-          else body=renderValue(m.content);
-          return header+'<div style="padding:0 0.5rem">'+body+'</div>';
+          else body=jsonBox(m.content);
+          return`<details style="margin:0.25rem 0;border-left:3px solid ${roleColor};padding-left:0.5rem"><summary style="cursor:pointer;list-style:none;padding:0.1rem 0">${header}</summary><div style="padding:0.25rem 0">${body}</div></details>`;
         }).join('');
         reqHtml+=section(`Messages (${f.request.messages.length})`,msgContent);
       }
@@ -1381,27 +1415,23 @@ async function viewFlow(id){
       // Tools
       if(f.request.tools&&f.request.tools.length>0){
         let toolsContent=f.request.tools.map((t,i)=>{
-          let name=typeof t==='object'?t.name||t.function?.name||'unknown':'tool';
-          return`<div style="margin:0.25rem 0;padding:0.25rem 0.5rem;border-bottom:1px solid var(--border)"><strong>[${i}]</strong> ${escapeHtml(name)}</div>`;
+          const name=typeof t==='object'?t.name||t.function?.name||'unknown':'tool';
+          const desc=typeof t==='object'?(t.description||t.function?.description||''):'';
+          return`<details style="margin:0.25rem 0;border-bottom:1px solid var(--border)"><summary style="cursor:pointer;padding:0.25rem 0.5rem"><strong>[${i}]</strong> ${escapeHtml(name)} <span style="color:#888;font-size:0.85em">${escapeHtml(desc.slice(0,60))}${desc.length>60?'...':''}</span></summary><div style="padding:0.5rem">${jsonBox(t)}</div></details>`;
         }).join('');
         reqHtml+=section(`Tools (${f.request.tools.length})`,toolsContent);
       }
 
-      // Body (完整请求体)
-      if(f.request.body){
-        reqHtml+=section('Request Body (Raw)','<pre style="margin:0;max-height:500px;overflow:auto;white-space:pre-wrap;font-size:0.82em">'+escapeHtml(JSON.stringify(f.request.body,null,2))+'</pre>');
-      }
-
-      html+=section('请求',reqHtml);
+      html+=section('请求',reqHtml,true);
     }
 
     // 响应详情
     if(f.response){
-      let respHtml=`<div style="margin-bottom:0.5rem"><strong>状态码:</strong> ${f.response.status_code} | <strong>Stop Reason:</strong> ${escapeHtml(f.response.stop_reason||'N/A')} | <strong>Chunks:</strong> ${f.response.chunk_count||0}</div>`;
+      let respHtml=`<div style="margin-bottom:0.5rem;font-size:0.9em"><strong>状态码:</strong> ${f.response.status_code} | <strong>Stop Reason:</strong> ${escapeHtml(f.response.stop_reason||'N/A')} | <strong>Chunks:</strong> ${f.response.chunk_count||0}</div>`;
 
       // Token Usage
       if(f.response.usage){
-        respHtml+=`<div style="margin:0.5rem 0;padding:0.5rem;background:var(--border);border-radius:4px">
+        respHtml+=`<div style="margin:0.5rem 0;padding:0.5rem;background:var(--border);border-radius:4px;font-size:0.9em">
           <strong>Input:</strong> ${f.response.usage.input_tokens||0} | <strong>Output:</strong> ${f.response.usage.output_tokens||0}
           ${f.response.usage.cache_read_tokens?'| <strong>Cache Read:</strong> '+f.response.usage.cache_read_tokens:''}
           ${f.response.usage.cache_write_tokens?'| <strong>Cache Write:</strong> '+f.response.usage.cache_write_tokens:''}
@@ -1410,29 +1440,24 @@ async function viewFlow(id){
 
       // 响应内容
       if(f.response.content!==undefined&&f.response.content!==null&&f.response.content!==''){
-        respHtml+=section('Response Content','<pre style="margin:0;max-height:500px;overflow:auto;white-space:pre-wrap;font-size:0.85em">'+escapeHtml(f.response.content)+'</pre>');
+        respHtml+=section('Response Content',`<pre style="margin:0;max-height:500px;overflow:auto;white-space:pre-wrap;font-size:0.85em">${escapeHtml(f.response.content)}</pre>`,true);
       }
 
       // Tool Calls
       if(f.response.tool_calls&&f.response.tool_calls.length>0){
-        let tcContent=f.response.tool_calls.map((tc,i)=>`<div style="margin:0.25rem 0;padding:0.25rem 0.5rem;border-bottom:1px solid var(--border)"><strong>[${i}]</strong> ${escapeHtml(tc.name||tc.type)}<pre style="margin:0.25rem 0 0;white-space:pre-wrap;font-size:0.82em">${escapeHtml(JSON.stringify(tc.input||tc,null,2))}</pre></div>`).join('');
+        let tcContent=f.response.tool_calls.map((tc,i)=>`<details style="margin:0.25rem 0;border-bottom:1px solid var(--border)"><summary style="cursor:pointer;padding:0.25rem 0.5rem"><strong>[${i}]</strong> ${escapeHtml(tc.name||tc.type||'call')}</summary><div style="padding:0.5rem">${jsonBox(tc.input||tc)}</div></details>`).join('');
         respHtml+=section(`Tool Calls (${f.response.tool_calls.length})`,tcContent);
       }
 
-      // Response Body (Raw)
-      if(f.response.body){
-        respHtml+=section('Response Body (Raw)','<pre style="margin:0;max-height:500px;overflow:auto;white-space:pre-wrap;font-size:0.82em">'+escapeHtml(typeof f.response.body==='string'?f.response.body:JSON.stringify(f.response.body,null,2))+'</pre>');
-      }
-
-      html+=section('响应',respHtml);
+      html+=section('响应',respHtml,true);
     }
 
     // 错误详情
     if(f.error){
-      let errHtml=`<div><strong>类型:</strong> ${escapeHtml(f.error.type)}<br><strong>状态码:</strong> ${f.error.status_code||'N/A'}</div>
-        <pre style="margin:0.5rem 0;white-space:pre-wrap;font-size:0.85em">${escapeHtml(f.error.message)}</pre>`;
-      if(f.error.raw) errHtml+=section('Raw Error','<pre style="margin:0;white-space:pre-wrap;font-size:0.82em">'+escapeHtml(f.error.raw)+'</pre>');
-      html+=section('错误',errHtml);
+      let errHtml=`<div style="font-size:0.9em"><strong>类型:</strong> ${escapeHtml(f.error.type)} | <strong>状态码:</strong> ${f.error.status_code||'N/A'}</div>
+        <pre style="margin:0.5rem 0;white-space:pre-wrap;font-size:0.85em;color:var(--error)">${escapeHtml(f.error.message)}</pre>`;
+      if(f.error.raw) errHtml+=section('Raw Error',`<pre style="margin:0;white-space:pre-wrap;font-size:0.82em">${escapeHtml(f.error.raw)}</pre>`);
+      html+=section('错误',errHtml,true);
     }
 
     $('#flowDetailContent').innerHTML=html;
@@ -1882,6 +1907,11 @@ function _(key) {{ return I18N[key] || key; }}
 {html_body}
 <div class="footer">Kiro API Proxy v1.7.16</div>
 </div>
+<div class="card" id="flowDetail" style="display:none;position:fixed;top:5vh;left:50%;transform:translateX(-50%);width:90%;max-width:900px;max-height:90vh;overflow-y:auto;z-index:1000;padding:1.5rem">
+  <h3 style="margin-top:0">Flow 详情 <button class="secondary small" onclick="closeFlowDetail()">关闭</button></h3>
+  <div id="flowDetailContent"></div>
+</div>
+<div id="flowDetailOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999" onclick="closeFlowDetail()"></div>
 <script>
 {js_i18n}
 {JS_SCRIPTS}
