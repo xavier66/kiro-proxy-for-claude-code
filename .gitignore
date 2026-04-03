@@ -48,6 +48,12 @@ parsed_*.txt
 response.txt
 参考.txt
 
+# Database
+flows.db
+
+# Playwright test artifacts
+.playwright-mcp/
+
 # Other projects
 Antigravity-Manager/
 cc-switch/
