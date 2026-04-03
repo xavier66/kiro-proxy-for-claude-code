@@ -336,7 +336,12 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
 
                         # 正常处理响应
                         msg_id = f"msg_{log_id}"
-                        yield f'event: message_start\ndata: {{"type":"message_start","message":{{"id":"{msg_id}","type":"message","role":"assistant","content":[],"model":"{model}","stop_reason":null,"stop_sequence":null,"usage":{{"input_tokens":0,"output_tokens":0}}}}}}\n\n'
+                        # 估算 input tokens：system + messages 字符数 ÷ 4
+                        est_input = _estimate_tokens(
+                            (_extract_text_from_content(system) if system else "") +
+                            " ".join(_extract_text_from_content(m.get("content","")) for m in messages)
+                        )
+                        yield f'event: message_start\ndata: {{"type":"message_start","message":{{"id":"{msg_id}","type":"message","role":"assistant","content":[],"model":"{model}","stop_reason":null,"stop_sequence":null,"usage":{{"input_tokens":{est_input},"output_tokens":0}}}}}}\n\n'
                         yield f'event: content_block_start\ndata: {{"type":"content_block_start","index":0,"content_block":{{"type":"text","text":""}}}}\n\n'
 
                         full_response = b""
@@ -386,7 +391,8 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
                                 yield f'event: content_block_stop\ndata: {{"type":"content_block_stop","index":{i}}}\n\n'
 
                         stop_reason = result["stop_reason"]
-                        yield f'event: message_delta\ndata: {{"type":"message_delta","delta":{{"stop_reason":"{stop_reason}","stop_sequence":null}},"usage":{{"output_tokens":100}}}}\n\n'
+                        est_output = _estimate_tokens(full_content)
+                        yield f'event: message_delta\ndata: {{"type":"message_delta","delta":{{"stop_reason":"{stop_reason}","stop_sequence":null}},"usage":{{"output_tokens":{est_output}}}}}\n\n'
                         yield f'event: message_stop\ndata: {{"type":"message_stop"}}\n\n'
 
                         # 完成 Flow
