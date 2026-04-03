@@ -170,3 +170,7 @@ python run.py login github
 本项目仅供学习研究，禁止商用。使用本项目产生的任何后果由使用者自行承担，与作者无关。
 
 本项目与 Kiro / AWS / Anthropic 官方无关。
+
+---
+
+Based on [petehsu/KiroProxy](https://github.com/petehsu/KiroProxy)
