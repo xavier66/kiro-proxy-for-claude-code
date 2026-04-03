@@ -65,4 +65,4 @@ def map_model_name(model: str) -> str:
         return MODEL_MAPPING[model]
     if model in KIRO_MODELS:
         return model
-    return model
+    return DEFAULT_MODEL
