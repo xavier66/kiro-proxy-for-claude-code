@@ -507,7 +507,10 @@ class FlowMonitor:
             flow.response.usage = usage
             self.store.total_tokens_in += usage.input_tokens
             self.store.total_tokens_out += usage.output_tokens
-    
+
+        # 持久化到数据库
+        self.store.db.save_flow(flow)
+
     def fail_flow(self, flow_id: str, error_type: str, message: str, status_code: int = 0, raw: str = ""):
         """标记 Flow 失败"""
         flow = self.store.get(flow_id)
@@ -522,7 +525,10 @@ class FlowMonitor:
             status_code=status_code,
             raw=raw[:1000],  # 限制长度
         )
-    
+
+        # 持久化到数据库
+        self.store.db.save_flow(flow)
+
     def bookmark_flow(self, flow_id: str, bookmarked: bool = True):
         """书签 Flow"""
         flow = self.store.get(flow_id)

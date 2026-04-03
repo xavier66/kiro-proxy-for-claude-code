@@ -23,8 +23,20 @@
 ---
 
 > **⚠️ 测试说明**
-> 
+>
 > 本项目支持 **Claude Code**、**Codex CLI**、**Gemini CLI** 三种客户端，工具调用功能已全面支持。
+
+## 改动说明
+
+本项目基于 [petehsu/KiroProxy](https://github.com/petehsu/KiroProxy) 二次开发，主要改动：
+
+### Bug 修复
+- **修复 Claude Code 流式 SSE 事件格式错误** — 原版代理仅发送 `data:` 行，缺少标准 SSE 规范要求的 `event:` 行。Claude Code 依赖 `event:` 字段识别事件类型，导致收不到 `message_start` 事件后触发 non-streaming fallback，同一请求发送两次，token 消耗 double
+
+### 新增特性
+- **SQLite 流量持久化** — 所有请求记录保存到 `flows.db`，重启后数据不丢失
+- **请求代理加速** — 支持通过 HTTP 代理转发请求（`KIRO_PROXY_URL` / `KIRO_PROXY_ENABLED` 环境变量配置）
+- **完整请求详情记录** — WebUI 详情页展示 system_prompt、user messages、tools 等完整请求参数，方便研究 Claude Code 的请求细节
 
 ## 功能特性
 
