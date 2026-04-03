@@ -207,35 +207,67 @@ class LLMFlow:
 
 
 class FlowStore:
-    """Flow 存储"""
-    
-    def __init__(self, max_flows: int = 500, persist_dir: Optional[Path] = None):
+    """Flow 存储 - 内存 + SQLite 数据库"""
+
+    def __init__(self, max_flows: int = 500, persist_dir: Optional[Path] = None, db_path: str = "flows.db"):
         self.flows: deque[LLMFlow] = deque(maxlen=max_flows)
         self.flow_map: Dict[str, LLMFlow] = {}
         self.persist_dir = persist_dir
         self.max_flows = max_flows
-        
+
+        # SQLite 数据库
+        from .flow_database import FlowDatabase
+        self.db = FlowDatabase(db_path)
+
         # 统计
         self.total_flows = 0
         self.total_tokens_in = 0
         self.total_tokens_out = 0
-    
+
+        # 启动时加载最近的流量记录到内存
+        self._load_recent_flows()
+
+    def _load_recent_flows(self):
+        """启动时加载最近的流量记录到内存"""
+        try:
+            recent_flow_ids = self.db.query_flows(limit=self.max_flows, order_by="created_at DESC")
+            for flow_id in recent_flow_ids:
+                flow = self.db.load_flow(flow_id)
+                if flow:
+                    self.flows.append(flow)
+                    self.flow_map[flow.id] = flow
+            print(f"[FlowStore] 从数据库加载了 {len(self.flows)} 条流量记录")
+        except Exception as e:
+            print(f"[FlowStore] 加载流量记录失败: {e}")
+
     def add(self, flow: LLMFlow):
         """添加 Flow"""
-        # 如果队列满了，移除最旧的
         if len(self.flows) >= self.max_flows:
             old = self.flows[0]
             if old.id in self.flow_map:
                 del self.flow_map[old.id]
-        
+
         self.flows.append(flow)
         self.flow_map[flow.id] = flow
         self.total_flows += 1
-    
+
+        # 保存到数据库
+        self.db.save_flow(flow)
+
     def get(self, flow_id: str) -> Optional[LLMFlow]:
-        """获取 Flow"""
-        return self.flow_map.get(flow_id)
-    
+        """获取 Flow - 先从内存查找，再从数据库查找"""
+        flow = self.flow_map.get(flow_id)
+        if flow:
+            return flow
+
+        flow = self.db.load_flow(flow_id)
+        if flow:
+            if len(self.flows) < self.max_flows:
+                self.flows.append(flow)
+                self.flow_map[flow.id] = flow
+
+        return flow
+
     def update(self, flow_id: str, **kwargs):
         """更新 Flow"""
         flow = self.flow_map.get(flow_id)
@@ -243,7 +275,8 @@ class FlowStore:
             for k, v in kwargs.items():
                 if hasattr(flow, k):
                     setattr(flow, k, v)
-    
+            self.db.save_flow(flow)
+
     def query(
         self,
         protocol: Optional[str] = None,
@@ -259,48 +292,78 @@ class FlowStore:
         search: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
+        from_db: bool = False,
     ) -> List[LLMFlow]:
-        """查询 Flows"""
+        """查询 Flows - 支持从内存或数据库查询"""
+
+        if from_db:
+            try:
+                state_str = state.value if state else None
+                flow_ids = self.db.query_flows(
+                    protocol=protocol,
+                    state=state_str,
+                    limit=limit,
+                    offset=offset,
+                    order_by="created_at DESC"
+                )
+                results = []
+                for flow_id in flow_ids:
+                    flow = self.db.load_flow(flow_id)
+                    if flow:
+                        if self._matches_filters(flow, model, account_id, has_error, bookmarked,
+                                               min_duration_ms, max_duration_ms, start_time, end_time, search):
+                            results.append(flow)
+                return results
+            except Exception as e:
+                print(f"[FlowStore] 数据库查询失败: {e}")
+                return []
+
+        # 从内存查询
         results = []
-        
         for flow in reversed(self.flows):
-            # 过滤条件
             if protocol and flow.protocol != protocol:
-                continue
-            if model and flow.request and flow.request.model != model:
-                continue
-            if account_id and flow.account_id != account_id:
                 continue
             if state and flow.state != state:
                 continue
-            if has_error is not None:
-                if has_error and not flow.error:
-                    continue
-                if not has_error and flow.error:
-                    continue
-            if bookmarked is not None and flow.bookmarked != bookmarked:
-                continue
-            if min_duration_ms and flow.timing.duration_ms and flow.timing.duration_ms < min_duration_ms:
-                continue
-            if max_duration_ms and flow.timing.duration_ms and flow.timing.duration_ms > max_duration_ms:
-                continue
-            if start_time and flow.timing.created_at < start_time:
-                continue
-            if end_time and flow.timing.created_at > end_time:
-                continue
-            if search:
-                # 简单搜索：在内容中查找
-                found = False
-                if flow.request and search.lower() in json.dumps(flow.request.body).lower():
-                    found = True
-                if flow.response and search.lower() in flow.response.content.lower():
-                    found = True
-                if not found:
-                    continue
-            
-            results.append(flow)
-        
+            if self._matches_filters(flow, model, account_id, has_error, bookmarked,
+                                   min_duration_ms, max_duration_ms, start_time, end_time, search):
+                results.append(flow)
+
         return results[offset:offset + limit]
+
+    def _matches_filters(self, flow: LLMFlow, model: Optional[str], account_id: Optional[str],
+                        has_error: Optional[bool], bookmarked: Optional[bool],
+                        min_duration_ms: Optional[float], max_duration_ms: Optional[float],
+                        start_time: Optional[float], end_time: Optional[float],
+                        search: Optional[str]) -> bool:
+        if model and flow.request and flow.request.model != model:
+            return False
+        if account_id and flow.account_id != account_id:
+            return False
+        if has_error is not None:
+            if has_error and not flow.error:
+                return False
+            if not has_error and flow.error:
+                return False
+        if bookmarked is not None and flow.bookmarked != bookmarked:
+            return False
+        if min_duration_ms and flow.timing.duration_ms and flow.timing.duration_ms < min_duration_ms:
+            return False
+        if max_duration_ms and flow.timing.duration_ms and flow.timing.duration_ms > max_duration_ms:
+            return False
+        if start_time and flow.timing.created_at < start_time:
+            return False
+        if end_time and flow.timing.created_at > end_time:
+            return False
+        if search:
+            found = False
+            if flow.request and search.lower() in json.dumps(flow.request.body).lower():
+                found = True
+            if flow.response and search.lower() in flow.response.content.lower():
+                found = True
+            if not found:
+                return False
+        return True
     
     def get_stats(self) -> dict:
         """获取统计信息"""

@@ -1,5 +1,6 @@
 """配置模块"""
 from pathlib import Path
+import os
 
 KIRO_API_URL = "https://q.us-east-1.amazonaws.com/generateAssistantResponse"
 MODELS_URL = "https://q.us-east-1.amazonaws.com/ListAvailableModels"
@@ -8,8 +9,16 @@ TOKEN_PATH = Path.home() / ".aws/sso/cache/kiro-auth-token.json"
 # 配额管理配置
 QUOTA_COOLDOWN_SECONDS = 300  # 配额超限冷却时间（秒）
 
+# 代理配置
+PROXY_URL = os.getenv("KIRO_PROXY_URL", "http://127.0.0.1:7897")  # 默认代理地址
+PROXY_ENABLED = os.getenv("KIRO_PROXY_ENABLED", "false").lower() == "true"  # 是否启用代理
+
 # 模型映射
 MODEL_MAPPING = {
+    # Claude Code 4.6 -> Kiro 4.6
+    "claude-sonnet-4-6": "claude-sonnet-4.6",
+    "claude-opus-4-6": "claude-opus-4.6",
+    "claude-haiku-4-5-20251001": "claude-haiku-4.5",
     # Claude 3.5 -> Kiro Claude 4
     "claude-3-5-sonnet-20241022": "claude-sonnet-4",
     "claude-3-5-sonnet-latest": "claude-sonnet-4",
@@ -45,7 +54,8 @@ MODEL_MAPPING = {
     "opus": "claude-opus-4.5",
 }
 
-KIRO_MODELS = {"auto", "claude-sonnet-4.5", "claude-sonnet-4", "claude-haiku-4.5", "claude-opus-4.5"}
+KIRO_MODELS = {"claude-sonnet-4.6", "claude-haiku-4.5", "claude-opus-4.6"}
+DEFAULT_MODEL = "claude-sonnet-4.6"
 
 def map_model_name(model: str) -> str:
     """将外部模型名称映射到 Kiro 支持的名称"""
@@ -55,11 +65,4 @@ def map_model_name(model: str) -> str:
         return MODEL_MAPPING[model]
     if model in KIRO_MODELS:
         return model
-    model_lower = model.lower()
-    if "opus" in model_lower:
-        return "claude-opus-4.5"
-    if "haiku" in model_lower:
-        return "claude-haiku-4.5"
-    if "sonnet" in model_lower:
-        return "claude-sonnet-4.5" if "4.5" in model_lower else "claude-sonnet-4"
-    return "claude-sonnet-4"
+    return model

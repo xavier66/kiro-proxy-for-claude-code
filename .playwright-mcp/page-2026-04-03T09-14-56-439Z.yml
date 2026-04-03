@@ -1,0 +1,251 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Kiro Kiro API Proxy" [level=1] [ref=e4]:
+      - img "Kiro" [ref=e5]
+      - text: Kiro API Proxy
+    - generic [ref=e6]:
+      - generic [ref=e8]: 已连接
+      - generic [ref=e9]: 端口 8081
+      - generic [ref=e10]: 运行 3分钟
+  - generic [ref=e11]:
+    - generic [ref=e12] [cursor=pointer]: 帮助
+    - generic [ref=e13] [cursor=pointer]: 流量
+    - generic [ref=e14] [cursor=pointer]: 监控
+    - generic [ref=e15] [cursor=pointer]: 账号
+    - generic [ref=e16] [cursor=pointer]: 日志
+    - generic [ref=e17] [cursor=pointer]: API
+    - generic [ref=e18] [cursor=pointer]: 设置
+  - generic [ref=e189]:
+    - generic [ref=e190]:
+      - heading "Flow 统计 刷新" [level=3] [ref=e191]:
+        - text: Flow 统计
+        - button "刷新" [ref=e192] [cursor=pointer]
+      - generic [ref=e193]:
+        - generic [ref=e194]:
+          - generic [ref=e195]: "14"
+          - generic [ref=e196]: 总请求
+        - generic [ref=e197]:
+          - generic [ref=e198]: "14"
+          - generic [ref=e199]: 完成
+        - generic [ref=e200]:
+          - generic [ref=e201]: "8"
+          - generic [ref=e202]: 错误
+        - generic [ref=e203]:
+          - generic [ref=e204]: 36.4%
+          - generic [ref=e205]: Error Rate
+        - generic [ref=e206]:
+          - generic [ref=e207]: 10215ms
+          - generic [ref=e208]: Avg Latency
+        - generic [ref=e209]:
+          - generic [ref=e210]: "0"
+          - generic [ref=e211]: Input Tokens
+        - generic [ref=e212]:
+          - generic [ref=e213]: "0"
+          - generic [ref=e214]: Output Tokens
+    - generic [ref=e215]:
+      - heading "流量监控" [level=3] [ref=e216]
+      - generic [ref=e217]:
+        - combobox [ref=e218]:
+          - option "全部协议" [selected]
+          - option "Anthropic"
+          - option "OpenAI"
+          - option "Gemini"
+        - combobox [ref=e219]:
+          - option "全部状态" [selected]
+          - option "完成"
+          - option "错误"
+          - option "流式中"
+          - option "等待中"
+        - textbox "搜索内容..." [ref=e220]
+        - button "搜索" [ref=e221] [cursor=pointer]
+        - button "导出" [ref=e222] [cursor=pointer]
+      - generic [ref=e223]:
+        - generic [ref=e224] [cursor=pointer]:
+          - generic [ref=e225]:
+            - generic [ref=e226]:
+              - generic [ref=e227]: 完成
+              - generic [ref=e228]: claude-sonnet-4-6
+            - generic [ref=e229]: 17:14:16 · 12337ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e230]
+        - generic [ref=e231] [cursor=pointer]:
+          - generic [ref=e232]:
+            - generic [ref=e233]:
+              - generic [ref=e234]: 错误
+              - generic [ref=e235]: glm-5-turbo
+            - generic [ref=e236]: 17:14:12 · 2338ms · - tokens · anthropic
+          - button "Bookmark" [ref=e237]
+        - generic [ref=e238] [cursor=pointer]:
+          - generic [ref=e239]:
+            - generic [ref=e240]:
+              - generic [ref=e241]: 完成
+              - generic [ref=e242]: claude-sonnet-4-6
+            - generic [ref=e243]: 17:13:58 · 17131ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e244]
+        - generic [ref=e245] [cursor=pointer]:
+          - generic [ref=e246]:
+            - generic [ref=e247]:
+              - generic [ref=e248]: 错误
+              - generic [ref=e249]: glm-5-turbo
+            - generic [ref=e250]: 17:13:57 · 5052ms · - tokens · anthropic
+          - button "Bookmark" [ref=e251]
+        - generic [ref=e252] [cursor=pointer]:
+          - generic [ref=e253]:
+            - generic [ref=e254]:
+              - generic [ref=e255]: 错误
+              - generic [ref=e256]: glm-5-turbo
+            - generic [ref=e257]: 17:13:50 · 2385ms · - tokens · anthropic
+          - button "Bookmark" [ref=e258]
+        - generic [ref=e259] [cursor=pointer]:
+          - generic [ref=e260]:
+            - generic [ref=e261]:
+              - generic [ref=e262]: 错误
+              - generic [ref=e263]: glm-5-turbo
+            - generic [ref=e264]: 17:13:44 · 3728ms · - tokens · anthropic
+          - button "Bookmark" [ref=e265]
+        - generic [ref=e266] [cursor=pointer]:
+          - generic [ref=e267]:
+            - generic [ref=e268]:
+              - generic [ref=e269]: 错误
+              - generic [ref=e270]: glm-5-turbo
+            - generic [ref=e271]: 17:13:37 · 5670ms · - tokens · anthropic
+          - button "Bookmark" [ref=e272]
+        - generic [ref=e273] [cursor=pointer]:
+          - generic [ref=e274]:
+            - generic [ref=e275]:
+              - generic [ref=e276]: 完成
+              - generic [ref=e277]: claude-sonnet-4-6
+            - generic [ref=e278]: 17:13:32 · 24915ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e279]
+        - generic [ref=e280] [cursor=pointer]:
+          - generic [ref=e281]:
+            - generic [ref=e282]:
+              - generic [ref=e283]: 错误
+              - generic [ref=e284]: claude-sonnet-4-6
+            - generic [ref=e285]: 17:13:27 · 5047ms · - tokens · anthropic
+          - button "Bookmark" [ref=e286]
+        - generic [ref=e287] [cursor=pointer]:
+          - generic [ref=e288]:
+            - generic [ref=e289]:
+              - generic [ref=e290]: 错误
+              - generic [ref=e291]: glm-5-turbo
+            - generic [ref=e292]: 17:12:30 · 66939ms · - tokens · anthropic
+          - button "Bookmark" [ref=e293]
+        - generic [ref=e294] [cursor=pointer]:
+          - generic [ref=e295]:
+            - generic [ref=e296]:
+              - generic [ref=e297]: 错误
+              - generic [ref=e298]: glm-5-turbo
+            - generic [ref=e299]: 17:12:27 · 2791ms · - tokens · anthropic
+          - button "Bookmark" [ref=e300]
+        - generic [ref=e301] [cursor=pointer]:
+          - generic [ref=e302]:
+            - generic [ref=e303]:
+              - generic [ref=e304]: 完成
+              - generic [ref=e305]: claude-sonnet-4-6
+            - generic [ref=e306]: 17:11:53 · 7091ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e307]
+        - generic [ref=e308] [cursor=pointer]:
+          - generic [ref=e309]:
+            - generic [ref=e310]:
+              - generic [ref=e311]: 完成
+              - generic [ref=e312]: claude-sonnet-4-6
+            - generic [ref=e313]: 17:11:38 · 15001ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e314]
+        - generic [ref=e315] [cursor=pointer]:
+          - generic [ref=e316]:
+            - generic [ref=e317]:
+              - generic [ref=e318]: 完成
+              - generic [ref=e319]: claude-haiku-4-5-20251001
+            - generic [ref=e320]: 17:11:38 · 2394ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e321]
+        - generic [ref=e322] [cursor=pointer]:
+          - generic [ref=e323]:
+            - generic [ref=e324]:
+              - generic [ref=e325]: 完成
+              - generic [ref=e326]: claude-haiku-4-5-20251001
+            - generic [ref=e327]: 15:51:56 · 8539ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e328]
+        - generic [ref=e329] [cursor=pointer]:
+          - generic [ref=e330]:
+            - generic [ref=e331]:
+              - generic [ref=e332]: 完成
+              - generic [ref=e333]: claude-sonnet-4-6
+            - generic [ref=e334]: 15:51:56 · 6554ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e335]
+        - generic [ref=e336] [cursor=pointer]:
+          - generic [ref=e337]:
+            - generic [ref=e338]:
+              - generic [ref=e339]: 完成
+              - generic [ref=e340]: claude-sonnet-4-6
+            - generic [ref=e341]: 15:52:04 · 8772ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e342]
+        - generic [ref=e343] [cursor=pointer]:
+          - generic [ref=e344]:
+            - generic [ref=e345]:
+              - generic [ref=e346]: 完成
+              - generic [ref=e347]: claude-haiku-4-5-20251001
+            - generic [ref=e348]: 15:52:05 · 5222ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e349]
+        - generic [ref=e350] [cursor=pointer]:
+          - generic [ref=e351]:
+            - generic [ref=e352]:
+              - generic [ref=e353]: 完成
+              - generic [ref=e354]: claude-haiku-4-5-20251001
+            - generic [ref=e355]: 16:07:38 · 6795ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e356]
+        - generic [ref=e357] [cursor=pointer]:
+          - generic [ref=e358]:
+            - generic [ref=e359]:
+              - generic [ref=e360]: 完成
+              - generic [ref=e361]: claude-sonnet-4-6
+            - generic [ref=e362]: 16:07:38 · 9786ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e363]
+        - generic [ref=e364] [cursor=pointer]:
+          - generic [ref=e365]:
+            - generic [ref=e366]:
+              - generic [ref=e367]: 完成
+              - generic [ref=e368]: claude-haiku-4-5-20251001
+            - generic [ref=e369]: 16:07:53 · 7665ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e370]
+        - generic [ref=e371] [cursor=pointer]:
+          - generic [ref=e372]:
+            - generic [ref=e373]:
+              - generic [ref=e374]: 完成
+              - generic [ref=e375]: claude-sonnet-4-6
+            - generic [ref=e376]: 16:07:53 · 10809ms · 0/0 tokens · anthropic
+          - button "Bookmark" [ref=e377]
+    - generic [ref=e378]:
+      - heading "Flow 详情 关闭" [level=3] [ref=e379]:
+        - text: Flow 详情
+        - button "关闭" [ref=e380] [cursor=pointer]
+      - generic [ref=e381]:
+        - generic [ref=e382]:
+          - generic [ref=e383]:
+            - strong [ref=e384]: "ID:"
+            - text: 37e0e84002e6
+          - generic [ref=e385]:
+            - strong [ref=e386]: "协议:"
+            - text: anthropic
+          - generic [ref=e387]:
+            - strong [ref=e388]: "状态:"
+            - text: completed
+          - generic [ref=e389]:
+            - strong [ref=e390]: "时间:"
+            - text: 2026/4/3 17:14:16
+          - generic [ref=e391]:
+            - strong [ref=e392]: "TTFB:"
+            - text: 10982ms
+          - generic [ref=e393]:
+            - strong [ref=e394]: "延迟:"
+            - text: 12337ms
+          - generic [ref=e395]:
+            - strong [ref=e396]: "账号:"
+            - text: default
+          - generic [ref=e397]:
+            - strong [ref=e398]: "重试:"
+            - text: "0"
+        - group [ref=e399]:
+          - generic "请求" [ref=e400] [cursor=pointer]
+        - group [ref=e401]:
+          - generic "响应" [ref=e402] [cursor=pointer]
+  - generic [ref=e188]: Kiro API Proxy v1.7.16

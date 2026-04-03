@@ -8,6 +8,7 @@ import httpx
 from fastapi import Request, HTTPException
 
 from ..config import KIRO_API_URL, map_model_name
+from ..http_client import create_http_client
 from ..core import state, is_retryable_error
 from ..core.state import RequestLog
 from ..core.history_manager import HistoryManager, get_history_config, is_content_length_error
@@ -75,7 +76,7 @@ async def handle_generate_content(model_name: str, request: Request):
     async def call_summary(prompt: str) -> str:
         req = build_kiro_request(prompt, "claude-haiku-4.5", [])
         try:
-            async with httpx.AsyncClient(verify=False, timeout=60) as client:
+            async with create_http_client(timeout=60, verify=False) as client:
                 resp = await client.post(KIRO_API_URL, json=req, headers=headers)
                 if resp.status_code == 200:
                     return parse_event_stream(resp.content)
@@ -99,7 +100,7 @@ async def handle_generate_content(model_name: str, request: Request):
     async def call_summary(prompt: str) -> str:
         req = build_kiro_request(prompt, "claude-haiku-4.5", [])
         try:
-            async with httpx.AsyncClient(verify=False, timeout=60) as client:
+            async with create_http_client(timeout=60, verify=False) as client:
                 resp = await client.post(KIRO_API_URL, json=req, headers=headers)
                 if resp.status_code == 200:
                     return parse_event_stream(resp.content)
@@ -118,11 +119,11 @@ async def handle_generate_content(model_name: str, request: Request):
     status_code = 200
     content = ""
     current_account = account
-    max_retries = 2
+    max_retries = 0
     
     for retry in range(max_retries + 1):
         try:
-            async with httpx.AsyncClient(verify=False, timeout=120) as client:
+            async with create_http_client(timeout=120, verify=False) as client:
                 resp = await client.post(KIRO_API_URL, json=kiro_request, headers=headers)
                 status_code = resp.status_code
                 

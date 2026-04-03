@@ -88,7 +88,7 @@ class TruncateStrategy(str, Enum):
 class HistoryConfig:
     """历史消息配置"""
     # 启用的策略（可多选）
-    strategies: List[TruncateStrategy] = field(default_factory=lambda: [TruncateStrategy.ERROR_RETRY])
+    strategies: List[TruncateStrategy] = field(default_factory=lambda: [TruncateStrategy.NONE])
     
     # 自动截断配置
     max_messages: int = 30           # 最大消息数
@@ -101,7 +101,7 @@ class HistoryConfig:
     
     # 错误重试配置
     retry_max_messages: int = 20     # 重试时保留的消息数
-    max_retries: int = 2             # 最大重试次数
+    max_retries: int = 0             # 最大重试次数
     
     # 预估配置
     estimate_threshold: int = 180000  # 预估阈值（字符数）
@@ -137,7 +137,7 @@ class HistoryConfig:
     
     @classmethod
     def from_dict(cls, data: dict) -> "HistoryConfig":
-        strategies = [TruncateStrategy(s) for s in data.get("strategies", ["error_retry"])]
+        strategies = [TruncateStrategy(s) for s in data.get("strategies", ["none"])]
         return cls(
             strategies=strategies,
             max_messages=data.get("max_messages", 30),
@@ -146,7 +146,7 @@ class HistoryConfig:
             summary_threshold=data.get("summary_threshold", 100000),
             summary_max_length=data.get("summary_max_length", 2000),
             retry_max_messages=data.get("retry_max_messages", 15),
-            max_retries=data.get("max_retries", 2),
+            max_retries=data.get("max_retries", 0),
             estimate_threshold=data.get("estimate_threshold", 180000),
             chars_per_token=data.get("chars_per_token", 3.0),
             summary_cache_enabled=data.get("summary_cache_enabled", True),

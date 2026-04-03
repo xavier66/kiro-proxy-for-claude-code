@@ -8,6 +8,7 @@ from fastapi import Request, HTTPException
 from fastapi.responses import StreamingResponse
 
 from ..config import KIRO_API_URL, map_model_name
+from ..http_client import create_http_client
 from ..core import state, RetryableRequest, is_retryable_error, stats_manager, flow_monitor, TokenUsage
 from ..core.state import RequestLog
 from ..core.history_manager import HistoryManager, get_history_config, is_content_length_error, TruncateStrategy
@@ -102,7 +103,7 @@ async def _call_kiro_for_summary(prompt: str, account, headers: dict) -> str:
     """调用 Kiro API 生成摘要（内部使用）"""
     kiro_request = build_kiro_request(prompt, "claude-haiku-4.5", [])  # 用快速模型生成摘要
     try:
-        async with httpx.AsyncClient(verify=False, timeout=60) as client:
+        async with create_http_client(timeout=60, verify=False) as client:
             resp = await client.post(KIRO_API_URL, json=kiro_request, headers=headers)
             if resp.status_code == 200:
                 return parse_event_stream(resp.content)
@@ -219,12 +220,12 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
         nonlocal kiro_request, history
         current_account = account
         retry_count = 0
-        max_retries = 2
+        max_retries = 0
         full_content = ""
         
         while retry_count <= max_retries:
             try:
-                async with httpx.AsyncClient(verify=False, timeout=300) as client:
+                async with create_http_client(timeout=300, verify=False) as client:
                     async with client.stream("POST", KIRO_API_URL, json=kiro_request, headers=headers) as response:
                         
                         # 处理配额超限
@@ -381,7 +382,7 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
                         if result["tool_uses"]:
                             for i, tool_use in enumerate(result["tool_uses"], 1):
                                 yield f'event: content_block_start\ndata: {{"type":"content_block_start","index":{i},"content_block":{{"type":"tool_use","id":"{tool_use["id"]}","name":"{tool_use["name"]}","input":{{}}}}}}\n\n'
-                                yield f'event: content_block_delta\ndata: {{"type":"content_block_delta","index":{i},"delta":{{"type":"input_json_delta","partial_json":{json.dumps(json.dumps(tool_use["input"]))}}}}\n\n'
+                                yield f'event: content_block_delta\ndata: {{"type":"content_block_delta","index":{i},"delta":{{"type":"input_json_delta","partial_json":{json.dumps(json.dumps(tool_use["input"]))}}}}}\n\n'
                                 yield f'event: content_block_stop\ndata: {{"type":"content_block_stop","index":{i}}}\n\n'
 
                         stop_reason = result["stop_reason"]
@@ -450,12 +451,12 @@ async def _handle_non_stream(kiro_request, headers, account, model, log_id, star
     error_msg = None
     status_code = 200
     current_account = account
-    max_retries = 2
-    retry_ctx = RetryableRequest(max_retries=2)
+    max_retries = 0
+    retry_ctx = RetryableRequest(max_retries=0)
 
     for retry in range(max_retries + 1):
         try:
-            async with httpx.AsyncClient(verify=False, timeout=300) as client:
+            async with create_http_client(timeout=300, verify=False) as client:
                 response = await client.post(KIRO_API_URL, json=kiro_request, headers=headers)
                 status_code = response.status_code
 

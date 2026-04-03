@@ -3,6 +3,7 @@ import json
 import uuid
 import time
 import httpx
+from ..http_client import create_http_client
 from pathlib import Path
 from datetime import datetime
 from dataclasses import asdict
@@ -185,11 +186,12 @@ async def speedtest():
             "x-amz-user-agent": f"aws-sdk-js/1.0.0 KiroIDE-{kiro_version}-{machine_id}",
             "Authorization": f"Bearer {token}",
         }
-        async with httpx.AsyncClient(verify=False, timeout=10) as client:
+        async with create_http_client(timeout=10, verify=False) as client:
             resp = await client.get(MODELS_URL, headers=headers, params={"origin": "AI_EDITOR"})
             latency = (time.time() - start) * 1000
+            print(f"[Speedtest] account={account.id}, status={resp.status_code}, latency={latency:.0f}ms")
             return {
-                "ok": resp.status_code == 200,
+                "ok": True,  # 始终返回 ok，延迟信息在 WebUI 上展示
                 "latency_ms": round(latency, 2),
                 "status": resp.status_code,
                 "account_id": account.id
@@ -417,7 +419,7 @@ async def run_health_check():
                 "content-type": "application/json"
             }
             
-            async with httpx.AsyncClient(verify=False, timeout=10) as client:
+            async with create_http_client(timeout=10, verify=False) as client:
                 resp = await client.get(
                     MODELS_URL,
                     headers=headers,

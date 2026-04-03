@@ -179,10 +179,6 @@ HTML_FLOWS = '''
     </div>
     <div id="flowList"></div>
   </div>
-  <div class="card" id="flowDetail" style="display:none">
-    <h3>Flow 详情 <button class="secondary small" onclick="$('#flowDetail').style.display='none'">关闭</button></h3>
-    <div id="flowDetailContent"></div>
-  </div>
 </div>
 '''
 
@@ -1314,22 +1310,134 @@ async function loadFlows(){
   }catch(e){console.error(e)}
 }
 
+function escapeHtml(s){if(typeof s!=='string')return JSON.stringify(s);return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function renderValue(v){
+  if(v===null||v===undefined)return'<span style="color:var(--muted)">null</span>';
+  if(typeof v==='string')return'<span style="white-space:pre-wrap;word-break:break-all">'+escapeHtml(v)+'</span>';
+  if(Array.isArray(v))return'<pre style="margin:0;max-height:400px;overflow:auto;white-space:pre-wrap;font-size:0.85em">'+escapeHtml(JSON.stringify(v,null,2))+'</pre>';
+  if(typeof v==='object')return'<pre style="margin:0;max-height:400px;overflow:auto;white-space:pre-wrap;font-size:0.85em">'+escapeHtml(JSON.stringify(v,null,2))+'</pre>';
+  return escapeHtml(String(v));
+}
+
+function section(title,content){
+  return`<details style="margin:0.5rem 0;border:1px solid var(--border);border-radius:4px"><summary style="padding:0.5rem;cursor:pointer;font-weight:bold">${title}</summary><div style="padding:0.5rem">${content}</div></details>`;
+}
+
+function closeFlowDetail(){
+  $('#flowDetail').style.display='none';
+  $('#flowDetailOverlay').style.display='none';
+}
+
 async function viewFlow(id){
   try{
     const r=await fetch('/api/flows/'+id);
     const f=await r.json();
-    let html=`<div style="margin-bottom:1rem"><strong>ID:</strong> ${f.id}<br><strong>协议:</strong> ${f.protocol}<br><strong>状态:</strong> ${f.state}<br><strong>时间:</strong> ${new Date(f.timing.created_at*1000).toLocaleString()}<br><strong>延迟:</strong> ${f.timing.duration_ms?f.timing.duration_ms.toFixed(0)+'ms':'N/A'}</div>`;
+
+    // 基本信息
+    let html=`<div style="margin-bottom:0.75rem;display:grid;grid-template-columns:1fr 1fr;gap:0.25rem 1rem;font-size:0.9em">
+      <div><strong>ID:</strong> ${escapeHtml(f.id)}</div>
+      <div><strong>协议:</strong> ${escapeHtml(f.protocol)}</div>
+      <div><strong>状态:</strong> ${escapeHtml(f.state)}</div>
+      <div><strong>时间:</strong> ${new Date(f.timing.created_at*1000).toLocaleString()}</div>
+      <div><strong>TTFB:</strong> ${f.timing.ttfb_ms?f.timing.ttfb_ms.toFixed(0)+'ms':'N/A'}</div>
+      <div><strong>延迟:</strong> ${f.timing.duration_ms?f.timing.duration_ms.toFixed(0)+'ms':'N/A'}</div>
+      <div><strong>账号:</strong> ${escapeHtml(f.account_id||'N/A')}</div>
+      <div><strong>重试:</strong> ${f.retry_count||0}</div>
+    </div>`;
+
+    // 请求详情
     if(f.request){
-      html+=`<h4 style="margin-bottom:0.5rem">请求</h4><div style="margin-bottom:1rem"><strong>模型:</strong> ${f.request.model}<br><strong>流式:</strong> ${f.request.stream?'是':'否'}</div>`;
+      let reqHtml=`<div style="margin-bottom:0.5rem"><strong>模型:</strong> ${escapeHtml(f.request.model)} | <strong>流式:</strong> ${f.request.stream?'是':'否'} | <strong>消息数:</strong> ${f.request.message_count||0} | <strong>Max Tokens:</strong> ${f.request.max_tokens||0} | <strong>Temperature:</strong> ${f.request.temperature||1.0}</div>`;
+
+      // System Prompt
+      if(f.request.system!==undefined&&f.request.system!==null&&f.request.system!==''){
+        let sysContent='';
+        if(Array.isArray(f.request.system)){
+          sysContent=f.request.system.map((s,i)=>{
+            if(typeof s==='string')return`[${i}] ${escapeHtml(s)}`;
+            if(s.type==='text')return`[${i}] (text) ${escapeHtml(s.text||'')}`;
+            return`[${i}] ${renderValue(s)}`;
+          }).join('\\n\\n');
+        }else{
+          sysContent=escapeHtml(String(f.request.system));
+        }
+        reqHtml+=section(`System Prompt (${Array.isArray(f.request.system)?f.request.system.length+' parts':'string'})`,`<pre style="margin:0;max-height:500px;overflow:auto;white-space:pre-wrap;font-size:0.85em">${sysContent}</pre>`);
+      }
+
+      // Messages
+      if(f.request.messages&&f.request.messages.length>0){
+        let msgContent=f.request.messages.map((m,i)=>{
+          let header=`<div style="margin:0.5rem 0 0.25rem;padding:0.25rem 0.5rem;background:var(--border);border-radius:3px"><strong>[${i}] ${escapeHtml(m.role)}</strong></div>`;
+          let body='';
+          if(typeof m.content==='string') body=`<pre style="margin:0;white-space:pre-wrap;font-size:0.85em">${escapeHtml(m.content)}</pre>`;
+          else if(Array.isArray(m.content)) body='<pre style="margin:0;white-space:pre-wrap;font-size:0.85em">'+escapeHtml(JSON.stringify(m.content,null,2))+'</pre>';
+          else body=renderValue(m.content);
+          return header+'<div style="padding:0 0.5rem">'+body+'</div>';
+        }).join('');
+        reqHtml+=section(`Messages (${f.request.messages.length})`,msgContent);
+      }
+
+      // Tools
+      if(f.request.tools&&f.request.tools.length>0){
+        let toolsContent=f.request.tools.map((t,i)=>{
+          let name=typeof t==='object'?t.name||t.function?.name||'unknown':'tool';
+          return`<div style="margin:0.25rem 0;padding:0.25rem 0.5rem;border-bottom:1px solid var(--border)"><strong>[${i}]</strong> ${escapeHtml(name)}</div>`;
+        }).join('');
+        reqHtml+=section(`Tools (${f.request.tools.length})`,toolsContent);
+      }
+
+      // Body (完整请求体)
+      if(f.request.body){
+        reqHtml+=section('Request Body (Raw)','<pre style="margin:0;max-height:500px;overflow:auto;white-space:pre-wrap;font-size:0.82em">'+escapeHtml(JSON.stringify(f.request.body,null,2))+'</pre>');
+      }
+
+      html+=section('请求',reqHtml);
     }
+
+    // 响应详情
     if(f.response){
-      html+=`<h4 style="margin-top:1rem;margin-bottom:0.5rem">响应</h4><div><strong>状态码:</strong> ${f.response.status_code}<br><strong>Token:</strong> ${f.response.usage?.input_tokens||0} in / ${f.response.usage?.output_tokens||0} out</div>`;
+      let respHtml=`<div style="margin-bottom:0.5rem"><strong>状态码:</strong> ${f.response.status_code} | <strong>Stop Reason:</strong> ${escapeHtml(f.response.stop_reason||'N/A')} | <strong>Chunks:</strong> ${f.response.chunk_count||0}</div>`;
+
+      // Token Usage
+      if(f.response.usage){
+        respHtml+=`<div style="margin:0.5rem 0;padding:0.5rem;background:var(--border);border-radius:4px">
+          <strong>Input:</strong> ${f.response.usage.input_tokens||0} | <strong>Output:</strong> ${f.response.usage.output_tokens||0}
+          ${f.response.usage.cache_read_tokens?'| <strong>Cache Read:</strong> '+f.response.usage.cache_read_tokens:''}
+          ${f.response.usage.cache_write_tokens?'| <strong>Cache Write:</strong> '+f.response.usage.cache_write_tokens:''}
+        </div>`;
+      }
+
+      // 响应内容
+      if(f.response.content!==undefined&&f.response.content!==null&&f.response.content!==''){
+        respHtml+=section('Response Content','<pre style="margin:0;max-height:500px;overflow:auto;white-space:pre-wrap;font-size:0.85em">'+escapeHtml(f.response.content)+'</pre>');
+      }
+
+      // Tool Calls
+      if(f.response.tool_calls&&f.response.tool_calls.length>0){
+        let tcContent=f.response.tool_calls.map((tc,i)=>`<div style="margin:0.25rem 0;padding:0.25rem 0.5rem;border-bottom:1px solid var(--border)"><strong>[${i}]</strong> ${escapeHtml(tc.name||tc.type)}<pre style="margin:0.25rem 0 0;white-space:pre-wrap;font-size:0.82em">${escapeHtml(JSON.stringify(tc.input||tc,null,2))}</pre></div>`).join('');
+        respHtml+=section(`Tool Calls (${f.response.tool_calls.length})`,tcContent);
+      }
+
+      // Response Body (Raw)
+      if(f.response.body){
+        respHtml+=section('Response Body (Raw)','<pre style="margin:0;max-height:500px;overflow:auto;white-space:pre-wrap;font-size:0.82em">'+escapeHtml(typeof f.response.body==='string'?f.response.body:JSON.stringify(f.response.body,null,2))+'</pre>');
+      }
+
+      html+=section('响应',respHtml);
     }
+
+    // 错误详情
     if(f.error){
-      html+=`<h4 style="margin-top:1rem;margin-bottom:0.5rem;color:var(--error)">错误</h4><div><strong>类型:</strong> ${f.error.type}<br><strong>消息:</strong> ${f.error.message}</div>`;
+      let errHtml=`<div><strong>类型:</strong> ${escapeHtml(f.error.type)}<br><strong>状态码:</strong> ${f.error.status_code||'N/A'}</div>
+        <pre style="margin:0.5rem 0;white-space:pre-wrap;font-size:0.85em">${escapeHtml(f.error.message)}</pre>`;
+      if(f.error.raw) errHtml+=section('Raw Error','<pre style="margin:0;white-space:pre-wrap;font-size:0.82em">'+escapeHtml(f.error.raw)+'</pre>');
+      html+=section('错误',errHtml);
     }
+
     $('#flowDetailContent').innerHTML=html;
     $('#flowDetail').style.display='block';
+    $('#flowDetailOverlay').style.display='block';
   }catch(e){alert('获取详情失败: '+e.message)}
 }
 
@@ -1799,6 +1907,11 @@ HTML_PAGE = get_html_page() if False else f'''<!DOCTYPE html>
 {HTML_BODY}
 <div class="footer">Kiro API Proxy v1.7.16</div>
 </div>
+<div class="card" id="flowDetail" style="display:none;position:fixed;top:5vh;left:50%;transform:translateX(-50%);width:90%;max-width:900px;max-height:90vh;overflow-y:auto;z-index:1000;padding:1.5rem">
+  <h3 style="margin-top:0">Flow 详情 <button class="secondary small" onclick="closeFlowDetail()">关闭</button></h3>
+  <div id="flowDetailContent"></div>
+</div>
+<div id="flowDetailOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999" onclick="closeFlowDetail()"></div>
 <script>
 {JS_SCRIPTS}
 </script>

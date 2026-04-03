@@ -4,6 +4,7 @@
 """
 import uuid
 import httpx
+from ..http_client import create_http_client
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -146,7 +147,7 @@ async def get_usage_limits(
     headers = build_usage_headers(access_token, machine_id, kiro_version)
     
     try:
-        async with httpx.AsyncClient(timeout=10, verify=False) as client:
+        async with create_http_client(timeout=10, verify=False) as client:
             response = await client.get(url, headers=headers)
             
             if response.status_code != 200:

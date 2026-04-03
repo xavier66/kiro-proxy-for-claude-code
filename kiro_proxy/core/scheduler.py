@@ -82,6 +82,7 @@ class BackgroundScheduler:
         """健康检查"""
         import httpx
         from ..config import MODELS_URL
+        from ..http_client import create_http_client
         from ..credential import CredentialStatus
         
         for acc in state.accounts:
@@ -99,7 +100,7 @@ class BackgroundScheduler:
                     "content-type": "application/json"
                 }
                 
-                async with httpx.AsyncClient(verify=False, timeout=10) as client:
+                async with create_http_client(timeout=10, verify=False) as client:
                     resp = await client.get(
                         MODELS_URL, 
                         headers=headers,

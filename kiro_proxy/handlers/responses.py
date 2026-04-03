@@ -11,6 +11,7 @@ from fastapi import Request, HTTPException
 from fastapi.responses import StreamingResponse
 
 from ..config import KIRO_API_URL, map_model_name
+from ..http_client import create_http_client
 from ..core import state, is_retryable_error, stats_manager
 from ..core.state import RequestLog
 from ..core.history_manager import HistoryManager, get_history_config
@@ -409,7 +410,7 @@ async def handle_responses(request: Request):
     async def api_caller(prompt: str) -> str:
         req = build_kiro_request(prompt, "claude-haiku-4.5", [])
         try:
-            async with httpx.AsyncClient(verify=False, timeout=60) as client:
+            async with create_http_client(timeout=60, verify=False) as client:
                 resp = await client.post(KIRO_API_URL, json=req, headers=headers)
                 if resp.status_code == 200:
                     return parse_event_stream(resp.content)
@@ -515,7 +516,7 @@ async def handle_responses(request: Request):
         return await _handle_stream(kiro_request, headers, account, model, log_id, start_time)
     
     # 非流式
-    async with httpx.AsyncClient(verify=False, timeout=120) as client:
+    async with create_http_client(timeout=120, verify=False) as client:
         resp = await client.post(KIRO_API_URL, json=kiro_request, headers=headers)
         if resp.status_code != 200:
             raise HTTPException(resp.status_code, resp.text)
@@ -584,7 +585,7 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
         print(f"[Responses] Request: model={model}, log_id={log_id}")
         
         try:
-            async with httpx.AsyncClient(verify=False, timeout=300) as client:
+            async with create_http_client(timeout=300, verify=False) as client:
                 async with client.stream("POST", KIRO_API_URL, json=kiro_request, headers=headers) as response:
                     
                     if response.status_code != 200:

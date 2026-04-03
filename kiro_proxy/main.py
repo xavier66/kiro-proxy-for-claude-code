@@ -2,6 +2,7 @@
 import json
 import uuid
 import httpx
+from .http_client import create_http_client
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -81,7 +82,7 @@ async def models():
             "amz-sdk-invocation-id": str(uuid.uuid4()),
             "Authorization": f"Bearer {token}",
         }
-        async with httpx.AsyncClient(verify=False, timeout=30) as client:
+        async with create_http_client(timeout=30, verify=False) as client:
             resp = await client.get(MODELS_URL, headers=headers, params={"origin": "AI_EDITOR"})
             if resp.status_code == 200:
                 data = resp.json()

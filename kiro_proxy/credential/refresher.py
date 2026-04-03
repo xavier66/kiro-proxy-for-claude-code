@@ -1,5 +1,6 @@
 """Token 刷新器"""
 import httpx
+from ..http_client import create_http_client
 from datetime import datetime, timezone, timedelta
 from typing import Tuple
 
@@ -58,7 +59,7 @@ class TokenRefresher:
         kiro_version = get_kiro_version()
         
         try:
-            async with httpx.AsyncClient(verify=False, timeout=30) as client:
+            async with create_http_client(timeout=30, verify=False) as client:
                 if auth_method == "idc":
                     if not self.credentials.client_id or not self.credentials.client_secret:
                         return False, "IdC 认证缺少 client_id 或 client_secret"
