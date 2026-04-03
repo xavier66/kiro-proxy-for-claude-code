@@ -206,14 +206,20 @@ async def handle_messages(request: Request):
     # 构建 Kiro 请求
     kiro_tools = convert_anthropic_tools_to_kiro(tools) if tools else None
     kiro_request = build_kiro_request(user_content, model, history, kiro_tools, images, tool_results)
-    
+
+    # 估算 input tokens：system + messages + tools 全部计入
+    system_text = _extract_text_from_content(system) if system else ""
+    messages_text = " ".join(_extract_text_from_content(m.get("content", "")) for m in messages)
+    tools_text = json.dumps(tools) if tools else ""
+    est_input_tokens = _estimate_tokens(system_text + messages_text + tools_text)
+
     if stream:
-        return await _handle_stream(kiro_request, headers, account, model, log_id, start_time, session_id, flow_id, history, user_content, kiro_tools, images, tool_results, history_manager)
+        return await _handle_stream(kiro_request, headers, account, model, log_id, start_time, session_id, flow_id, history, user_content, kiro_tools, images, tool_results, history_manager, est_input_tokens)
     else:
-        return await _handle_non_stream(kiro_request, headers, account, model, log_id, start_time, session_id, flow_id, history, user_content, kiro_tools, images, tool_results, history_manager)
+        return await _handle_non_stream(kiro_request, headers, account, model, log_id, start_time, session_id, flow_id, history, user_content, kiro_tools, images, tool_results, history_manager, est_input_tokens)
 
 
-async def _handle_stream(kiro_request, headers, account, model, log_id, start_time, session_id=None, flow_id=None, history=None, user_content="", kiro_tools=None, images=None, tool_results=None, history_manager=None):
+async def _handle_stream(kiro_request, headers, account, model, log_id, start_time, session_id=None, flow_id=None, history=None, user_content="", kiro_tools=None, images=None, tool_results=None, history_manager=None, est_input_tokens=0):
     """Handle streaming responses with auto-retry on quota exceeded and network errors."""
     
     async def generate():
@@ -336,13 +342,7 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
 
                         # 正常处理响应
                         msg_id = f"msg_{log_id}"
-                        # 估算 input tokens：user_content + history 字符数 ÷ 4
-                        hist_text = " ".join(
-                            str(m.get("content","")) for m in (history or [])
-                            if isinstance(m, dict)
-                        )
-                        est_input = _estimate_tokens(user_content + hist_text)
-                        yield f'event: message_start\ndata: {{"type":"message_start","message":{{"id":"{msg_id}","type":"message","role":"assistant","content":[],"model":"{model}","stop_reason":null,"stop_sequence":null,"usage":{{"input_tokens":{est_input},"output_tokens":0}}}}}}\n\n'
+                        yield f'event: message_start\ndata: {{"type":"message_start","message":{{"id":"{msg_id}","type":"message","role":"assistant","content":[],"model":"{model}","stop_reason":null,"stop_sequence":null,"usage":{{"input_tokens":{est_input_tokens},"output_tokens":0}}}}}}\n\n'
                         yield f'event: content_block_start\ndata: {{"type":"content_block_start","index":0,"content_block":{{"type":"text","text":""}}}}\n\n'
 
                         full_response = b""
@@ -453,7 +453,7 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-async def _handle_non_stream(kiro_request, headers, account, model, log_id, start_time, session_id=None, flow_id=None, history=None, user_content="", kiro_tools=None, images=None, tool_results=None, history_manager=None):
+async def _handle_non_stream(kiro_request, headers, account, model, log_id, start_time, session_id=None, flow_id=None, history=None, user_content="", kiro_tools=None, images=None, tool_results=None, history_manager=None, est_input_tokens=0):
     """Handle non-streaming responses with auto-retry on quota exceeded and network errors."""
     error_msg = None
     status_code = 200
@@ -555,7 +555,7 @@ async def _handle_non_stream(kiro_request, headers, account, model, log_id, star
                         ),
                     )
 
-                return convert_kiro_response_to_anthropic(result, model, f"msg_{log_id}")
+                return convert_kiro_response_to_anthropic(result, model, f"msg_{log_id}", est_input_tokens)
 
         except HTTPException:
             raise

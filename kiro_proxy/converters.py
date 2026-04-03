@@ -393,16 +393,18 @@ def convert_anthropic_messages_to_kiro(messages: List[dict], system="") -> Tuple
     return user_content, history, current_tool_results
 
 
-def convert_kiro_response_to_anthropic(result: dict, model: str, msg_id: str) -> dict:
+def convert_kiro_response_to_anthropic(result: dict, model: str, msg_id: str, est_input_tokens: int = 0) -> dict:
     """将 Kiro 响应转换为 Anthropic 格式"""
     content = []
     text = "".join(result["content"])
     if text:
         content.append({"type": "text", "text": text})
-    
+
     for tool_use in result["tool_uses"]:
         content.append(tool_use)
-    
+
+    est_output = (len(text) + 3) // 4
+
     return {
         "id": msg_id,
         "type": "message",
@@ -411,7 +413,7 @@ def convert_kiro_response_to_anthropic(result: dict, model: str, msg_id: str) ->
         "model": model,
         "stop_reason": result["stop_reason"],
         "stop_sequence": None,
-        "usage": {"input_tokens": 100, "output_tokens": 100}
+        "usage": {"input_tokens": est_input_tokens, "output_tokens": est_output}
     }
 
 
