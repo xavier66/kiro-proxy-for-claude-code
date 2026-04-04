@@ -209,7 +209,7 @@ class LLMFlow:
 class FlowStore:
     """Flow 存储 - 内存 + SQLite 数据库"""
 
-    def __init__(self, max_flows: int = 500, persist_dir: Optional[Path] = None, db_path: str = "flows.db"):
+    def __init__(self, max_flows: int = 50, persist_dir: Optional[Path] = None, db_path: str = "flows.db"):
         self.flows: deque[LLMFlow] = deque(maxlen=max_flows)
         self.flow_map: Dict[str, LLMFlow] = {}
         self.persist_dir = persist_dir
@@ -228,16 +228,14 @@ class FlowStore:
         self._load_recent_flows()
 
     def _load_recent_flows(self):
-        """启动时加载最近的流量记录到内存"""
+        """启动时只记录最近的 flow ID，详情按需从数据库加载"""
         try:
             recent_flow_ids = self.db.query_flows(limit=self.max_flows, order_by="created_at DESC")
-            for flow_id in recent_flow_ids:
-                flow = self.db.load_flow(flow_id)
-                if flow:
-                    self.flows.append(flow)
-                    self.flow_map[flow.id] = flow
-            print(f"[FlowStore] 从数据库加载了 {len(self.flows)} 条流量记录")
+            # 只保存 ID 列表，不加载完整内容到内存
+            self._recent_ids = list(recent_flow_ids)
+            print(f"[FlowStore] 从数据库索引了 {len(self._recent_ids)} 条流量记录")
         except Exception as e:
+            self._recent_ids = []
             print(f"[FlowStore] 加载流量记录失败: {e}")
 
     def add(self, flow: LLMFlow):
@@ -638,4 +636,4 @@ class FlowMonitor:
 
 
 # 全局实例
-flow_monitor = FlowMonitor(max_flows=500)
+flow_monitor = FlowMonitor(max_flows=50)

@@ -1,5 +1,6 @@
 """账号管理"""
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,14 +41,39 @@ class Account:
         """加载凭证信息"""
         try:
             self._credentials = KiroCredentials.from_file(self.token_path)
-            
+
             if self._credentials.client_id_hash and not self._credentials.client_id:
                 self._merge_client_credentials()
-            
+
+            if not self._credentials.profile_arn:
+                self._merge_profile_arn()
+
             return self._credentials
         except Exception as e:
             print(f"[Account] 加载凭证失败 {self.id}: {e}")
             return None
+
+    def _merge_profile_arn(self):
+        """从 Kiro IDE 的 profile.json 读取 profileArn"""
+        import sys
+        profile_paths = [
+            Path.home() / "Library/Application Support/kiro/User/globalStorage/kiro.kiroagent/profile.json",
+            Path.home() / "Library/Application Support/Kiro/User/globalStorage/kiro.kiroagent/profile.json",
+            Path.home() / ".config/kiro/User/globalStorage/kiro.kiroagent/profile.json",
+            Path(os.environ.get("APPDATA", "")) / "kiro/User/globalStorage/kiro.kiroagent/profile.json",
+        ]
+        for p in profile_paths:
+            if p.exists():
+                try:
+                    with open(p) as f:
+                        data = json.load(f)
+                    arn = data.get("arn")
+                    if arn:
+                        self._credentials.profile_arn = arn
+                        print(f"[Account] 从 profile.json 加载 profileArn: {arn}")
+                        return
+                except Exception:
+                    pass
     
     def _merge_client_credentials(self):
         """合并 clientIdHash 对应的凭证文件"""
@@ -161,4 +187,5 @@ class Account:
             "auth_method": creds.auth_method if creds else None,
             "has_refresh_token": bool(creds and creds.refresh_token),
             "idc_config_complete": bool(creds and creds.client_id and creds.client_secret) if creds and creds.auth_method == "idc" else None,
+            "profile_arn": creds.profile_arn if creds else None,
         }

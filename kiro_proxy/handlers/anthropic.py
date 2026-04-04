@@ -101,7 +101,8 @@ async def handle_count_tokens(request: Request):
 
 async def _call_kiro_for_summary(prompt: str, account, headers: dict) -> str:
     """调用 Kiro API 生成摘要（内部使用）"""
-    kiro_request = build_kiro_request(prompt, "claude-haiku-4.5", [])  # 用快速模型生成摘要
+    creds = account.get_credentials() if account else None
+    kiro_request = build_kiro_request(prompt, "claude-haiku-4.5", [], profile_arn=creds.profile_arn if creds else None)  # 用快速模型生成摘要
     try:
         async with create_http_client(timeout=60, verify=False) as client:
             resp = await client.post(KIRO_API_URL, json=kiro_request, headers=headers)
@@ -205,7 +206,7 @@ async def handle_messages(request: Request):
     
     # 构建 Kiro 请求
     kiro_tools = convert_anthropic_tools_to_kiro(tools) if tools else None
-    kiro_request = build_kiro_request(user_content, model, history, kiro_tools, images, tool_results)
+    kiro_request = build_kiro_request(user_content, model, history, kiro_tools, images, tool_results, profile_arn=creds.profile_arn if creds else None)
 
     # 估算 input tokens：system + messages + tools 全部计入
     system_text = _extract_text_from_content(system) if system else ""
@@ -277,6 +278,7 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
                             print(f"Tool results: {len(tool_results) if tool_results else 0}")
                             # 对于 400 错误，打印更多请求细节
                             if response.status_code == 400:
+                                print(f"  headers sent: { {k:v for k,v in headers.items() if k != 'Authorization'} }")
                                 print(f"Kiro request keys: {list(kiro_request.keys())}")
                                 if 'conversationState' in kiro_request:
                                     cs = kiro_request['conversationState']
@@ -295,6 +297,9 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
                                         if hist:
                                             for i, h in enumerate(hist[:3]):
                                                 print(f"    history[{i}] keys: {list(h.keys()) if isinstance(h, dict) else type(h)}")
+                                import json as _json
+                                req_size = len(_json.dumps(kiro_request).encode())
+                                print(f"  request body size: {req_size/1024:.1f} KB")
                             print(f"======================")
                             
                             # 使用统一的错误处理
@@ -327,7 +332,7 @@ async def _handle_stream(kiro_request, headers, account, model, log_id, start_ti
                                     print(f"[Stream] 内容长度超限，{history_manager.truncate_info}")
                                     history = truncated_history
                                     # 重新构建请求
-                                    kiro_request = build_kiro_request(user_content, model, history, kiro_tools, images, tool_results)
+                                    kiro_request = build_kiro_request(user_content, model, history, kiro_tools, images, tool_results, profile_arn=creds.profile_arn if creds else None)
                                     retry_count += 1
                                     continue
                             
@@ -498,6 +503,10 @@ async def _handle_non_stream(kiro_request, headers, account, model, log_id, star
                 if response.status_code != 200:
                     error_msg = response.text
                     print(f"[NonStream] Kiro API Error {response.status_code}: {error_msg[:500]}")
+                    if response.status_code == 400:
+                        import json as _json
+                        req_size = len(_json.dumps(kiro_request).encode())
+                        print(f"[NonStream] request body size: {req_size/1024:.1f} KB, history: {len(history) if history else 0}")
                     
                     # 使用统一的错误处理
                     status, error_type, error_message, error_obj = _handle_kiro_error(
@@ -527,7 +536,7 @@ async def _handle_non_stream(kiro_request, headers, account, model, log_id, star
                         if should_retry:
                             print(f"[NonStream] 内容长度超限，{history_manager.truncate_info}")
                             history = truncated_history
-                            kiro_request = build_kiro_request(user_content, model, history, kiro_tools, images, tool_results)
+                            kiro_request = build_kiro_request(user_content, model, history, kiro_tools, images, tool_results, profile_arn=creds.profile_arn if creds else None)
                             continue
                         else:
                             print(f"[NonStream] 内容长度超限但未重试: retry={retry}/{max_retries}")

@@ -44,8 +44,8 @@ class KiroProvider(BaseProvider):
         return self._machine_id
     
     def build_headers(
-        self, 
-        token: str, 
+        self,
+        token: str,
         agent_mode: str = "vibe",
         **kwargs
     ) -> Dict[str, str]:
@@ -53,8 +53,8 @@ class KiroProvider(BaseProvider):
         machine_id = kwargs.get("machine_id") or self.get_machine_id()
         kiro_version = get_kiro_version()
         os_name, node_version = get_system_info()
-        
-        return {
+
+        headers = {
             "content-type": "application/json",
             "x-amzn-codewhisperer-optout": "true",
             "x-amzn-kiro-agent-mode": agent_mode,
@@ -65,6 +65,8 @@ class KiroProvider(BaseProvider):
             "Authorization": f"Bearer {token}",
             "Connection": "close",
         }
+
+        return headers
     
     def build_request(
         self,
@@ -75,6 +77,7 @@ class KiroProvider(BaseProvider):
         tools: List[dict] = None,
         images: List[dict] = None,
         tool_results: List[dict] = None,
+        profile_arn: str = None,
         **kwargs
     ) -> Dict[str, Any]:
         """构建 Kiro API 请求体"""
@@ -103,7 +106,7 @@ class KiroProvider(BaseProvider):
         if context:
             user_input_message["userInputMessageContext"] = context
         
-        return {
+        result = {
             "conversationState": {
                 "agentContinuationId": str(uuid.uuid4()),
                 "agentTaskType": "vibe",
@@ -113,6 +116,11 @@ class KiroProvider(BaseProvider):
                 "history": history or []
             }
         }
+
+        if profile_arn:
+            result["profileArn"] = profile_arn
+
+        return result
     
     def parse_response(self, raw: bytes) -> Dict[str, Any]:
         """解析 AWS event-stream 格式响应"""

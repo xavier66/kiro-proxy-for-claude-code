@@ -688,6 +688,7 @@ async def get_flows(
         search=search,
         limit=limit,
         offset=offset,
+        from_db=True,
     )
     
     return {

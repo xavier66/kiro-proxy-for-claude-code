@@ -10,7 +10,7 @@
 
 ---
 
-> **✅ 验证状态（2026-04-03）**
+> **✅ 验证状态（2026-04-04）**
 >
 > 已验证：**Claude Code** 接入正常，工具调用、流式响应、Context Window HUD 均正常工作。
 >
@@ -24,6 +24,7 @@
 - **修复流式 SSE 事件格式错误** — 原版只发 `data:` 行，缺少 `event:` 行。Claude Code 依赖 `event:` 字段识别事件类型，缺失后触发 non-streaming fallback，同一请求发两次，token 消耗翻倍
 - **修复非流式响应内容丢失** — non-stream 路径用了错误的 key 取响应内容（`result["text"]` 应为 `result["content"]`）
 - **修复 Flow 状态不持久化** — `complete_flow`/`fail_flow` 修改内存状态后未写入 SQLite，WebUI 刷新后状态回到 pending
+- **修复 profileArn 缺失导致 400 错误** — IdC 登录方式需要在请求 body 顶层传入 `profileArn`，proxy 启动时自动从 Kiro IDE 本地 `profile.json` 读取
 
 ### 新增特性
 - **Context Window HUD 支持** — 估算 system + messages + tools 的 token 数，填入 SSE usage 字段，Claude Code 的 context 进度条可正常显示

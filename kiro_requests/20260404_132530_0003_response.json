@@ -1,0 +1,20 @@
+{
+  "timestamp": "20260404_132530",
+  "status_code": 200,
+  "headers": {
+    "Date": "Sat, 04 Apr 2026 05:25:29 GMT",
+    "Content-Type": "application/json",
+    "Transfer-Encoding": "chunked",
+    "Connection": "close",
+    "x-amzn-RequestId": "7ef9c841-4e97-4a22-8a0b-412ad53bff72",
+    "X-XSS-Protection": "1; mode=block",
+    "Strict-Transport-Security": "max-age=47304000; includeSubDomains",
+    "X-Frame-Options": "DENY",
+    "x-amzn-kiro-conversation-id": "",
+    "Cache-Control": "no-cache",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "body": null,
+  "body_raw_length": 4434,
+  "body_preview": "\u0000\u0000\u0000�\u0000\u0000\u0000\\�)Է\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"你\",\"modelId\":\"claude-sonnet-4.6\"}�(N�\u0000\u0000\u0000�\u0000\u0000\u0000\\J�t�\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"好！你\",\"modelId\":\"claude-sonnet-4.6\"}.w�\u0002\u0000\u0000\u0000�\u0000\u0000\u0000\\�)Է\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"是\",\"modelId\":\"claude-sonnet-4.6\"}��2�\u0000\u0000\u0000�\u0000\u0000\u0000\\�)Է\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"想\",\"modelId\":\"claude-sonnet-4.6\"}!\r�#\u0000\u0000\u0000�\u0000\u0000\u0000\\�)Է\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"问\",\"modelId\":\"claude-sonnet-4.6\"}\u0007�V�\u0000\u0000\u0000�\u0000\u0000\u0000\\�)Է\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"什\",\"modelId\":\"claude-sonnet-4.6\"}\u001e©d\u0000\u0000\u0000�\u0000\u0000\u0000\\�)Է\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"么\",\"modelId\":\"claude-sonnet-4.6\"};#��\u0000\u0000\u0000�\u0000\u0000\u0000\\J�t�\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"呢？能\",\"modelId\":\"claude-sonnet-4.6\"}(Q��\u0000\u0000\u0000�\u0000\u0000\u0000\\�)Է\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"说\",\"modelId\":\"claude-sonnet-4.6\"}�DG�\u0000\u0000\u0000�\u0000\u0000\u0000\\�)Է\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"得\",\"modelId\":\"claude-sonnet-4.6\"}>�Z)\u0000\u0000\u0000�\u0000\u0000\u0000\\i�[�\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"更具\",\"modelId\":\"claude-sonnet-4.6\"}ZâY\u0000\u0000\u0000�\u0000\u0000\u0000\\���A\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\"content\":\"体一点吗？\\n\\n如\",\"modelId\":\"claude-sonnet-4.6\"}x���\u0000\u0000\u0000�\u0000\u0000\u0000\\J�t�\u000b:event-type\u0007\u0000\u0016assistantResponseEvent\r:content-type\u0007\u0000\u0010application/json\r:message-type\u0007\u0000\u0005event{\""
+}

@@ -816,6 +816,7 @@ async function loadAccounts(){
             <div class="account-meta-item"><span>${_('accounts.errors')}</span><span>${a.error_count}</span></div>
             <div class="account-meta-item"><span>${_('accounts.token')}</span><span class="badge ${tokenBadge}">${tokenStatus}</span></div>
             ${a.cooldown_remaining?`<div class="account-meta-item"><span>${_('accounts.cooldown')}</span><span>${a.cooldown_remaining}s</span></div>`:''}
+            ${a.profile_arn?`<div class="account-meta-item" style="grid-column:1/-1"><span>Profile ARN</span><span style="font-size:0.8em;word-break:break-all;color:var(--muted)">${a.profile_arn}</span></div>`:`<div class="account-meta-item" style="grid-column:1/-1"><span>Profile ARN</span><span class="badge error">未设置</span></div>`}
           </div>
           <div id="usage-${a.id}" class="account-usage" style="display:none;margin-top:0.75rem;padding:0.75rem;background:var(--bg);border-radius:6px"></div>
           <div class="account-actions">
@@ -1422,7 +1423,15 @@ async function viewFlow(id){
         reqHtml+=section(`Tools (${f.request.tools.length})`,toolsContent);
       }
 
-      html+=section('请求',reqHtml,true);
+      // Headers
+      if(f.request.headers&&Object.keys(f.request.headers).length>0){
+        let hdrsContent=Object.entries(f.request.headers).map(([k,v])=>
+          `<div style="display:flex;gap:0.5rem;padding:0.2rem 0;border-bottom:1px solid var(--border);font-size:0.85em"><span style="color:var(--muted);min-width:200px;flex-shrink:0">${escapeHtml(k)}</span><span style="word-break:break-all">${escapeHtml(v)}</span></div>`
+        ).join('');
+        reqHtml+=section('Headers',hdrsContent,false);
+      }
+
+      html+=section('请求',reqHtml,false);
     }
 
     // 响应详情
@@ -1449,7 +1458,7 @@ async function viewFlow(id){
         respHtml+=section(`Tool Calls (${f.response.tool_calls.length})`,tcContent);
       }
 
-      html+=section('响应',respHtml,true);
+      html+=section('响应',respHtml,false);
     }
 
     // 错误详情
